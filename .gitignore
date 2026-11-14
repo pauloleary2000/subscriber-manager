@@ -1,0 +1,8 @@
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.sql
+*.sql.gz
+*.json
+.DS_Store
