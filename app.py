@@ -1,7 +1,9 @@
+import hmac
+from werkzeug.security import check_password_hash
 import os
 import calendar
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
 from dotenv import load_dotenv
 from xui_client import XUIClient, XUIClientError
@@ -169,9 +171,10 @@ def parse_expiry_info(expiry_str):
         return "other", None
     today = date.today()
     eom = get_end_of_month(today)
+    next_month_first = eom + timedelta(days=1)
     if dt < today:
         return "expired", dt
-    elif dt <= eom:
+    elif dt <= next_month_first:
         return "expiring_month", dt
     else:
         return "active", dt
