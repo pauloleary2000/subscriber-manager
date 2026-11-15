@@ -1,6 +1,6 @@
 import os
 import calendar
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash
 import mysql.connector
 from dotenv import load_dotenv
@@ -27,6 +27,75 @@ If you have any questions please let me know.
 
 Cheers
 Ottawa IPTV"""
+
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
+
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+
+def is_authenticated():
+    return session.get("authenticated") is True and session.get("user") == ADMIN_USER
+
+
+def verify_admin_credentials(username, password):
+    if not hmac.compare_digest((username or "").strip(), ADMIN_USER):
+        return False
+    if ADMIN_PASSWORD_HASH:
+        return check_password_hash(ADMIN_PASSWORD_HASH, password or "")
+    if ADMIN_PASSWORD:
+        return hmac.compare_digest(password or "", ADMIN_PASSWORD)
+    return False
+
+
+@app.before_request
+def require_login():
+    if request.endpoint in ("login", "static"):
+        return None
+    if not ADMIN_PASSWORD_HASH and not ADMIN_PASSWORD:
+        # Fail closed if no admin password is configured
+        if request.endpoint != "login":
+            flash("ADMIN_PASSWORD_HASH is not configured in environment.", "warning")
+            return redirect(url_for("login"))
+    if not is_authenticated():
+        next_target = request.full_path if request.query_string else request.path
+        return redirect(url_for("login", next=next_target))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if is_authenticated():
+        return redirect(url_for("index"))
+    next_url = request.args.get("next") or request.form.get("next") or url_for("index")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = url_for("index")
+
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if verify_admin_credentials(username, password):
+            session.clear()
+            session["authenticated"] = True
+            session["user"] = ADMIN_USER
+            session.permanent = request.form.get("remember_me") == "on"
+            return redirect(next_url)
+        flash("Invalid username or password.", "error")
+
+    return render_template("login.html", next_url=next_url)
+
+
+@app.route("/logout", methods=["POST", "GET"])
+def logout():
+    session.clear()
+    flash("You have been signed out.", "success")
+    return redirect(url_for("login"))
+
 
 def get_db_connection():
     return mysql.connector.connect(
