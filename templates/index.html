@@ -248,10 +248,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     {% if valid_bcc_emails %}
-                    <a href="mailto:?bcc={{ valid_bcc_emails | urlencode }}&subject={{ reminder_subject | urlencode }}&body={{ reminder_body | urlencode }}"
-                       class="bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-700">
-                        Open All in Mail (BCC)
-                    </a>
+                    <a href="#" target="_blank" rel="noopener noreferrer" data-bcc="{{ valid_bcc_emails | urlencode }}" onclick="return openBulkExpiringEmail(this);" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5">Open All in Mail (BCC)</a>
                     <button type="button" onclick="copyText('bccEmailsInput', this)"
                             class="bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-slate-700">
                         Copy All Emails
@@ -285,8 +282,7 @@
                             <td class="p-3 text-slate-600">{{ sub.email or 'No email' }}</td>
                             <td class="p-3 text-right">
                                 {% if sub.has_valid_email %}
-                                    <a href="mailto:{{ sub.email }}?subject={{ reminder_subject | urlencode }}&body={{ reminder_body | urlencode }}"
-                                       class="text-blue-600 hover:underline font-medium text-xs">Send Email &rarr;</a>
+                                    <button type=\"button\" onclick=\"openBulkExpiringEmail(event)\" class=\"bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5\">Send Email &rarr;</button>
                                 {% else %}
                                     <span class="text-xs text-slate-400 italic">No valid email</span>
                                 {% endif %}
@@ -669,5 +665,166 @@
         }
     }
 </script>
+
+
+
+<!-- Renewal Email Template Modal -->
+<div id="emailTemplateModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl max-w-2xl w-full p-6 shadow-xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Renewal Email Template</h3>
+                <p class="text-xs text-slate-500">Use <code class="bg-slate-100 px-1 rounded">{month}</code> to auto-insert <strong>{{ current_month_label }}</strong>. Saved automatically in your browser.</p>
+            </div>
+            <button type="button" onclick="closeEmailTemplateModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+        </div>
+
+        <div class="space-y-3">
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label for="bulkEmailSubject" class="block text-xs font-semibold text-slate-600 uppercase">Subject Line</label>
+                    <span class="text-xs text-slate-500">Recipients (BCC): <strong id="emailBccCount">0</strong></span>
+                </div>
+                <input type="text" id="bulkEmailSubject"
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div>
+                <label for="bulkEmailBody" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Body</label>
+                <textarea id="bulkEmailBody" rows="8"
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="copyEmailField('bcc')" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 font-medium">Copy BCC Emails</button>
+                    <button type="button" onclick="copyEmailField('body')" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 font-medium">Copy Body Text</button>
+                </div>
+                <button type="button" onclick="resetEmailTemplate()" class="text-slate-500 hover:text-slate-800 underline">Reset to Default</button>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+            <span id="emailTemplateStatus" class="text-xs font-medium text-emerald-700"></span>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeEmailTemplateModal()" class="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm">Close</button>
+                <button type="button" onclick="saveEmailTemplate()" class="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 text-sm font-semibold">Save Template</button>
+                <button type="button" onclick="saveEmailTemplate(); openBulkExpiringEmail(event);" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-semibold">Save &amp; Send Email</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="bulk-bcc-data" type="application/json">{{ valid_bcc_emails | default([]) | tojson }}</script>
+<script>
+    const CURRENT_MONTH_LABEL = {{ current_month_label | default("") | tojson }};
+    const DEFAULT_EMAIL_SUBJECT = "IPTV Subscription Renewal Reminder ({month})";
+    const DEFAULT_EMAIL_BODY =
+        "Hi there,\n\n" +
+        "Just a friendly reminder that your IPTV subscription is coming up for renewal for {month}.\n\n" +
+        "Please reply to let me know if you would like to renew (1 Month, 3 Months, or 1 Year) so there is no interruption to your service.\n\n" +
+        "Thanks!";
+
+    function getBccList() {
+        try {
+            const raw = document.getElementById("bulk-bcc-data").textContent;
+            return JSON.parse(raw) || [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    function loadEmailTemplateFields() {
+        const subjEl = document.getElementById("bulkEmailSubject");
+        const bodyEl = document.getElementById("bulkEmailBody");
+        const countEl = document.getElementById("emailBccCount");
+        if (subjEl) subjEl.value = localStorage.getItem("iptv_email_subject") || DEFAULT_EMAIL_SUBJECT;
+        if (bodyEl) bodyEl.value = localStorage.getItem("iptv_email_body") || DEFAULT_EMAIL_BODY;
+        if (countEl) countEl.textContent = getBccList().length;
+    }
+
+    function openEmailTemplateModal() {
+        loadEmailTemplateFields();
+        const statusEl = document.getElementById("emailTemplateStatus");
+        if (statusEl) statusEl.textContent = "";
+        document.getElementById("emailTemplateModal").classList.remove("hidden");
+    }
+
+    function closeEmailTemplateModal() {
+        document.getElementById("emailTemplateModal").classList.add("hidden");
+    }
+
+    function saveEmailTemplate() {
+        const subjEl = document.getElementById("bulkEmailSubject");
+        const bodyEl = document.getElementById("bulkEmailBody");
+        if (subjEl) localStorage.setItem("iptv_email_subject", subjEl.value);
+        if (bodyEl) localStorage.setItem("iptv_email_body", bodyEl.value);
+        const statusEl = document.getElementById("emailTemplateStatus");
+        if (statusEl) {
+            statusEl.textContent = "Template saved.";
+            setTimeout(() => { statusEl.textContent = ""; }, 2500);
+        }
+    }
+
+    function resetEmailTemplate() {
+        localStorage.removeItem("iptv_email_subject");
+        localStorage.removeItem("iptv_email_body");
+        loadEmailTemplateFields();
+        const statusEl = document.getElementById("emailTemplateStatus");
+        if (statusEl) statusEl.textContent = "Reset to default.";
+    }
+
+    function renderTemplateText(raw) {
+        return (raw || "").replace(/\{month\}/gi, CURRENT_MONTH_LABEL);
+    }
+
+    function copyEmailField(kind) {
+        loadEmailTemplateFields();
+        let text = "";
+        if (kind === "bcc") {
+            text = getBccList().join(", ");
+        } else {
+            text = renderTemplateText(document.getElementById("bulkEmailBody").value);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                const statusEl = document.getElementById("emailTemplateStatus");
+                if (statusEl) statusEl.textContent = (kind === "bcc" ? "BCC list" : "Body text") + " copied to clipboard.";
+            });
+        }
+    }
+
+    function openBulkExpiringEmail(e) {
+        if (e) e.preventDefault();
+        const bcc = getBccList().join(",");
+        const rawSubject = localStorage.getItem("iptv_email_subject") || DEFAULT_EMAIL_SUBJECT;
+        const rawBody = localStorage.getItem("iptv_email_body") || DEFAULT_EMAIL_BODY;
+
+        const subject = renderTemplateText(rawSubject);
+        const body = renderTemplateText(rawBody);
+        const encodedBody = encodeURIComponent(body).replace(/%0A/g, "%0D%0A");
+
+        const fullMailto = "mailto:?bcc=" + encodeURIComponent(bcc) +
+            "&subject=" + encodeURIComponent(subject) +
+            "&body=" + encodedBody;
+
+        if (fullMailto.length > 1950) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(body).catch(() => {});
+            }
+            const shortMailto = "mailto:?bcc=" + encodeURIComponent(bcc) +
+                "&subject=" + encodeURIComponent(subject);
+            window.open(shortMailto, "_blank", "noopener,noreferrer");
+            alert("Because there are many BCC addresses, your email body was copied to your clipboard—press Cmd+V inside the compose window.");
+        } else {
+            window.open(fullMailto, "_blank", "noopener,noreferrer");
+        }
+        return false;
+    }
+
+    document.addEventListener("DOMContentLoaded", loadEmailTemplateFields);
+</script>
+<!-- End Renewal Email Template Modal -->
+
 </body>
 </html>
