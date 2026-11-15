@@ -17,7 +17,7 @@
           {% if messages %}
             <div class="space-y-2">
               {% for category, msg in messages %}
-                <div class="p-3 rounded-lg text-xs font-medium {{ \x27bg-red-50 text-red-800 border border-red-200\x27 if category in (\x27error\x27, \x27warning\x27) else \x27bg-emerald-50 text-emerald-800 border border-emerald-200\x27 }}">
+                <div class="p-3 rounded-lg text-xs font-medium {{ 'bg-red-50 text-red-800 border border-red-200' if category in ('error', 'warning') else 'bg-emerald-50 text-emerald-800 border border-emerald-200' }}">
                   {{ msg }}
                 </div>
               {% endfor %}
