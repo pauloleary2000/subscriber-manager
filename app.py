@@ -3,7 +3,7 @@ from werkzeug.security import check_password_hash
 import os
 import calendar
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import jsonify, Flask, render_template, request, redirect, url_for, flash, session
 import mysql.connector
 from dotenv import load_dotenv
 from xui_client import XUIClient, XUIClientError
@@ -556,6 +556,141 @@ def delete_subscriber(sub_id):
     
     flash(f"Deleted subscriber #{sub_id}.", "warning")
     return redirect(url_for("index"))
+
+
+@app.route("/xui/expiring-week", methods=["GET"])
+def xui_expiring_week():
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    conn = get_db_connection()
+    try:
+        xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
+        xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
+        if not xui_enabled:
+            return jsonify({"error": "XUI sync is currently disabled."}), 400
+
+        client = XUIClient(xui_phpsessid)
+        credits = client.get_credits()
+        lines = client.get_lines_expiring_within(days=7, include_recently_expired_days=3)
+
+        # Enrich with local subscriber info if userid matches
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(f"SELECT id, firstname, lastname, email, userid, expirydate FROM {TABLE} WHERE userid IS NOT NULL AND userid != ''")
+        local_map = {}
+        for row in cursor.fetchall():
+            uid_key = (row.get("userid") or "").strip().lower()
+            if uid_key and uid_key not in local_map:
+                local_map[uid_key] = row
+
+        for item in lines:
+            match = local_map.get(item["username"].lower())
+            if match:
+                item["local_id"] = match["id"]
+                item["local_name"] = f"{match.get('firstname', '')} {match.get('lastname', '')}".strip()
+                item["local_email"] = match.get("email") or ""
+                item["local_expiry"] = match.get("expirydate") or ""
+            else:
+                item["local_id"] = None
+                item["local_name"] = ""
+                item["local_email"] = ""
+                item["local_expiry"] = ""
+
+        return jsonify({"credits": credits, "lines": lines})
+    except XUIClientError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Unexpected XUI error: {e}"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/xui/extend-week", methods=["POST"])
+def xui_extend_week():
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    usernames = [u.strip() for u in request.form.getlist("usernames") if u.strip()]
+    # Deduplicate preserving order
+    seen = set()
+    unique_users = []
+    for u in usernames:
+        if u.lower() not in seen:
+            seen.add(u.lower())
+            unique_users.append(u)
+
+    try:
+        months = int(request.form.get("months", 1))
+    except ValueError:
+        months = 1
+    if months not in (1, 3, 12):
+        months = 1
+
+    if not unique_users:
+        flash("No XUI accounts selected to extend.", "warning")
+        return redirect(url_for("index"))
+
+    conn = get_db_connection()
+    try:
+        xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
+        xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
+        if not xui_enabled:
+            flash("XUI sync is disabled.", "warning")
+            return redirect(url_for("index"))
+
+        client = XUIClient(xui_phpsessid)
+        available_credits = client.get_credits()
+        required_credits = len(unique_users) * months
+
+        if available_credits < required_credits:
+            flash(
+                f"Insufficient XUI credits: need {required_credits} credit(s) for {len(unique_users)} account(s) x {months}M, "
+                f"but only {available_credits} credit(s) available.",
+                "warning",
+            )
+            return redirect(url_for("index"))
+
+        cursor = conn.cursor(dictionary=True)
+        succeeded = []
+        skipped = []
+        failed = []
+
+        for uname in unique_users:
+            try:
+                line_id, new_xui_exp, pkg_id, pkg_name = client.extend_line(uname, months, datetime.now())
+                # Sync local DB expirydate if a matching userid exists
+                new_dt = client.parse_xui_exp(new_xui_exp)
+                if new_dt:
+                    formatted_local = format_db_date(new_dt)
+                    cursor.execute(
+                        f"UPDATE {TABLE} SET expirydate=%s WHERE LOWER(TRIM(userid))=%s",
+                        (formatted_local, uname.lower()),
+                    )
+                succeeded.append(f"{uname} (-> {new_xui_exp.split()[0]})")
+            except Exception as e:
+                msg = str(e)
+                if "already active" in msg.lower():
+                    skipped.append(uname)
+                else:
+                    failed.append(f"{uname}: {msg}")
+
+        conn.commit()
+        remaining = available_credits - (len(succeeded) * months)
+        if succeeded:
+            flash(
+                f"Extended {len(succeeded)} XUI account(s) (+{months}M, est. {remaining} credits left): {', '.join(succeeded)}",
+                "success",
+            )
+        if skipped:
+            flash(f"Skipped already-active XUI account(s): {', '.join(skipped)}", "warning")
+        if failed:
+            flash(f"Failed XUI extension(s): {'; '.join(failed)}", "warning")
+    except XUIClientError as e:
+        flash(f"XUI Error: {e}", "warning")
+    finally:
+        conn.close()
+
+    return redirect(url_for("index"))
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

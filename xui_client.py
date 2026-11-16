@@ -267,3 +267,108 @@ class XUIClient:
                 raise XUIClientError("XUI session expired during save. Please paste a fresh PHPSESSID.")
 
         return line_id, new_exp_formatted, pkg_id, pkg_name
+
+    def get_credits(self):
+        """Returns current reseller credit balance as an int (or float if fractional)."""
+        self.verify_session()
+        try:
+            r = self.session.get(
+                f"{self.base_url}/api",
+                params={"action": "stats"},
+                headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{self.base_url}/dashboard"},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and data.get("owner_credits") is not None:
+                    raw = str(data["owner_credits"]).replace(",", "").strip()
+                    return int(float(raw)) if float(raw).is_integer() else float(raw)
+        except Exception:
+            pass
+
+        dash = self.session.get(f"{self.base_url}/dashboard", timeout=15).text
+        m = re.search(r'''id=["']owner_credits["'][^>]*>([^<]+)<''', dash, re.IGNORECASE)
+        if m:
+            raw = m.group(1).replace(",", "").strip()
+            return int(float(raw)) if float(raw).is_integer() else float(raw)
+        raise XUIClientError("Could not read available credits from XUI dashboard.")
+
+    def get_lines_expiring_within(self, days=7, include_recently_expired_days=3):
+        """
+        Fetches XUI lines expiring within `days` days from now
+        (also includes lines expired within `include_recently_expired_days` days).
+        Excludes trial lines.
+        """
+        self.verify_session()
+        ajax_headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/lines",
+        }
+        all_rows = []
+        start = 0
+        page_size = 500
+        while True:
+            params = {
+                "id": "lines",
+                "action": "lines",
+                "start": start,
+                "length": page_size,
+            }
+            r = self.session.get(f"{self.base_url}/table.php", params=params, headers=ajax_headers, timeout=20)
+            r.raise_for_status()
+            payload = r.json()
+            rows = payload.get("data", []) if isinstance(payload, dict) else []
+            if not rows:
+                break
+            all_rows.extend(rows)
+            if len(rows) < page_size:
+                break
+            start += page_size
+
+        now = datetime.now()
+        results = []
+
+        def strip_html(val):
+            txt = re.sub(r"<br\s*/?>", " ", str(val or ""), flags=re.IGNORECASE)
+            txt = re.sub(r"<[^>]+>", "", txt)
+            return re.sub(r"\s+", " ", txt).strip()
+
+        for row in all_rows:
+            if not isinstance(row, list) or len(row) < 10:
+                continue
+            line_id = strip_html(row[0])
+            username = strip_html(row[1])
+            owner = strip_html(row[3])
+            status_html = str(row[4] or "")
+            trial_html = str(row[5] or "")
+            max_conn = strip_html(row[8]) if len(row) > 8 else "1"
+            exp_clean = strip_html(row[9])
+
+            # Skip trial accounts
+            if "fa-check" in trial_html.lower() and "text-success" in trial_html.lower():
+                continue
+            # Skip disabled/banned lines
+            if "disabled" in status_html.lower() or "banned" in status_html.lower():
+                continue
+
+            exp_dt = self.parse_xui_exp(exp_clean)
+            if not exp_dt:
+                continue
+
+            delta_days = (exp_dt - now).total_seconds() / 86400.0
+            if -include_recently_expired_days <= delta_days <= days:
+                status_m = re.search(r'''title=["']([^"']+)["']''', status_html, re.IGNORECASE)
+                status_label = status_m.group(1) if status_m else ("Expired" if delta_days < 0 else "Active")
+                results.append({
+                    "line_id": line_id,
+                    "username": username,
+                    "owner": owner,
+                    "status": status_label,
+                    "max_connections": max_conn,
+                    "exp_date": exp_dt.strftime("%Y-%m-%d %H:%M"),
+                    "days_left": round(delta_days, 1),
+                    "is_expired": delta_days < 0,
+                })
+
+        results.sort(key=lambda x: x["exp_date"])
+        return results
