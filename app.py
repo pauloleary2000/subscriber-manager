@@ -1,3 +1,11 @@
+"""
+IPTV Subscriber Manager — Flask Web Application.
+
+Manages local customer billing records in MariaDB/MySQL, generates Gmail renewal
+and announcement links for 613koditv@gmail.com, and synchronizes credit-checked
+line extensions with the XUI One reseller panel.
+"""
+
 import hmac
 from werkzeug.security import check_password_hash
 import os
@@ -392,7 +400,6 @@ def extend_subscriber(sub_id):
             cursor.execute(f"UPDATE {TABLE} SET expirydate=%s WHERE LOWER(TRIM(userid))=LOWER(%s)", (new_expiry_str, uid_clean))
         else:
             cursor.execute(f"UPDATE {TABLE} SET expirydate=%s WHERE id=%s", (new_expiry_str, sub_id))
-        conn.commit()
         label = "1 year" if months == 12 else f"{months} month{'s' if months > 1 else ''}"
         flash(
             f"Extended {sub['firstname']} {sub['lastname']} (#{sub_id}) by {label} "
@@ -560,6 +567,7 @@ def delete_subscriber(sub_id):
 
 @app.route("/xui/expiring-week", methods=["GET"])
 def xui_expiring_week():
+    """Return JSON payload of live XUI credits and lines expiring within 7 days."""
     if "user" not in session:
         return jsonify({"error": "Not authenticated"}), 401
     conn = get_db_connection()
@@ -606,6 +614,7 @@ def xui_expiring_week():
 
 @app.route("/xui/extend-week", methods=["POST"])
 def xui_extend_week():
+    """Extend selected XUI lines after verifying available reseller credits (XUI-only)."""
     if "user" not in session:
         return redirect(url_for("login"))
 
@@ -649,7 +658,6 @@ def xui_extend_week():
             )
             return redirect(url_for("index"))
 
-        cursor = conn.cursor(dictionary=True)
         succeeded = []
         skipped = []
         failed = []
@@ -657,14 +665,6 @@ def xui_extend_week():
         for uname in unique_users:
             try:
                 line_id, new_xui_exp, pkg_id, pkg_name = client.extend_line(uname, months, datetime.now())
-                # Sync local DB expirydate if a matching userid exists
-                new_dt = client.parse_xui_exp(new_xui_exp)
-                if new_dt:
-                    formatted_local = format_db_date(new_dt)
-                    cursor.execute(
-                        f"UPDATE {TABLE} SET expirydate=%s WHERE LOWER(TRIM(userid))=%s",
-                        (formatted_local, uname.lower()),
-                    )
                 succeeded.append(f"{uname} (-> {new_xui_exp.split()[0]})")
             except Exception as e:
                 msg = str(e)

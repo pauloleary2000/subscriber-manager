@@ -1,22 +1,35 @@
+"""
+XUI One Reseller Panel HTTP Client.
+
+Provides session-authenticated helpers to:
+- Verify an active PHPSESSID session against the XUI dashboard.
+- Query live reseller credit balances (`owner_credits`).
+- List XUI lines expiring within a configurable window (excluding trial/disabled lines).
+- Safely extend existing lines while preserving package tier (Clean/Adult, VOD/No-VOD, MAG)
+  and bouquet assignments.
+"""
+
+import calendar
 import os
 import re
-import calendar
 from datetime import datetime
 import requests
 
 
 class XUIClientError(Exception):
-    pass
+    """Base exception for XUI authentication, parsing, or API errors."""
 
 
 class XUIAlreadyActiveError(XUIClientError):
-    """Raised when XUI shows the line is already active/renewed so credits are not spent twice."""
+    """Raised when XUI shows a line is already active past the renewal threshold."""
+
     def __init__(self, message, xui_exp_dt=None):
         super().__init__(message)
         self.xui_exp_dt = xui_exp_dt
 
 
 def add_months_dt(dt, months):
+    """Return a datetime advanced by `months` calendar months, clamping end-of-month days."""
     month_idx = dt.month - 1 + months
     year = dt.year + month_idx // 12
     month = month_idx % 12 + 1
@@ -24,6 +37,7 @@ def add_months_dt(dt, months):
     return dt.replace(year=year, month=month, day=day)
 
 
+# Mapping of logical subscription tiers to XUI package IDs and display labels
 PACKAGE_TIERS = {
     "clean_vod": {
         1: ("15", "1 Month - Clean -with VOD"),
@@ -59,24 +73,32 @@ PACKAGE_TIERS = {
 
 
 class XUIClient:
+    """HTTP session wrapper around the XUI One reseller web panel."""
+
     def __init__(self, phpsessid):
         self.base_url = os.getenv("XUI_URL", "https://iptvottawa.ca/SCHSEGZi").rstrip("/")
         self.member_id = os.getenv("XUI_MEMBER_ID", "35")
         self.phpsessid = (phpsessid or "").strip()
 
         if not self.phpsessid:
-            raise XUIClientError("No XUI PHPSESSID session cookie saved. Click 'XUI Sync' in the header to set it.")
+            raise XUIClientError(
+                "No XUI PHPSESSID session cookie saved. Click 'XUI Sync' in the header to set it."
+            )
 
         self.session = requests.Session()
         self.session.cookies.set("PHPSESSID", self.phpsessid, domain="iptvottawa.ca")
         self.session.cookies.set("theme", "0", domain="iptvottawa.ca")
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
+            ),
             "Accept": "*/*",
             "Origin": "https://iptvottawa.ca",
         })
 
     def match_existing_tier(self, months, orig_package=""):
+        """Infer the appropriate XUI package ID, label, credit cost, and duration string."""
         orig_l = (orig_package or "").lower()
         is_adult = "adult" in orig_l
         is_mag = "mag" in orig_l
@@ -99,12 +121,132 @@ class XUIClient:
         return pkg_id, pkg_name, pkg_cost, pkg_duration
 
     def verify_session(self):
+        """Confirm that the configured PHPSESSID is still authenticated on the XUI panel."""
         resp = self.session.get(f"{self.base_url}/dashboard", timeout=15, allow_redirects=True)
         if "/login" in resp.url or 'name="password"' in resp.text:
-            raise XUIClientError("XUI PHPSESSID session has expired. Log into XUI in Chrome and paste a fresh PHPSESSID.")
+            raise XUIClientError(
+                "XUI PHPSESSID session has expired. Log into XUI in Chrome and paste a fresh PHPSESSID."
+            )
         return True
 
+    def get_credits(self):
+        """Return the reseller's current credit balance via XUI stats JSON or dashboard HTML."""
+        self.verify_session()
+        try:
+            r = self.session.get(
+                f"{self.base_url}/api",
+                params={"action": "stats"},
+                headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{self.base_url}/dashboard"},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and data.get("owner_credits") is not None:
+                    raw = str(data["owner_credits"]).replace(",", "").strip()
+                    val = float(raw)
+                    return int(val) if val.is_integer() else val
+        except Exception:
+            pass
+
+        dash = self.session.get(f"{self.base_url}/dashboard", timeout=15).text
+        m = re.search(r'''id=["']owner_credits["'][^>]*>([^<]+)<''', dash, re.IGNORECASE)
+        if m:
+            raw = m.group(1).replace(",", "").strip()
+            val = float(raw)
+            return int(val) if val.is_integer() else val
+        raise XUIClientError("Could not read available credits from XUI dashboard.")
+
+    def parse_xui_exp(self, exp_str):
+        """Parse an XUI expiration string into a naive datetime object."""
+        cleaned = (exp_str or "").strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(cleaned, fmt)
+            except ValueError:
+                continue
+        return None
+
+    def get_lines_expiring_within(self, days=7, include_recently_expired_days=3):
+        """
+        Fetch all non-trial, non-disabled XUI lines expiring within `days` days
+        (including lines expired up to `include_recently_expired_days` days ago).
+        """
+        self.verify_session()
+        ajax_headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/lines",
+        }
+        all_rows = []
+        start = 0
+        page_size = 500
+
+        while True:
+            params = {
+                "id": "lines",
+                "action": "lines",
+                "start": start,
+                "length": page_size,
+            }
+            r = self.session.get(f"{self.base_url}/table.php", params=params, headers=ajax_headers, timeout=20)
+            r.raise_for_status()
+            payload = r.json()
+            rows = payload.get("data", []) if isinstance(payload, dict) else []
+            if not rows:
+                break
+            all_rows.extend(rows)
+            if len(rows) < page_size:
+                break
+            start += page_size
+
+        now = datetime.now()
+        results = []
+
+        def strip_html(val):
+            txt = re.sub(r"<br\s*/?>", " ", str(val or ""), flags=re.IGNORECASE)
+            txt = re.sub(r"<[^>]+>", "", txt)
+            return re.sub(r"\s+", " ", txt).strip()
+
+        for row in all_rows:
+            if not isinstance(row, list) or len(row) < 10:
+                continue
+            line_id = strip_html(row[0])
+            username = strip_html(row[1])
+            owner = strip_html(row[3])
+            status_html = str(row[4] or "")
+            trial_html = str(row[5] or "")
+            max_conn = strip_html(row[8]) if len(row) > 8 else "1"
+            exp_clean = strip_html(row[9])
+
+            # Exclude trial and disabled/banned accounts
+            if "fa-check" in trial_html.lower() and "text-success" in trial_html.lower():
+                continue
+            if "disabled" in status_html.lower() or "banned" in status_html.lower():
+                continue
+
+            exp_dt = self.parse_xui_exp(exp_clean)
+            if not exp_dt:
+                continue
+
+            delta_days = (exp_dt - now).total_seconds() / 86400.0
+            if -include_recently_expired_days <= delta_days <= days:
+                status_m = re.search(r'''title=["']([^"']+)["']''', status_html, re.IGNORECASE)
+                status_label = status_m.group(1) if status_m else ("Expired" if delta_days < 0 else "Active")
+                results.append({
+                    "line_id": line_id,
+                    "username": username,
+                    "owner": owner,
+                    "status": status_label,
+                    "max_connections": max_conn,
+                    "exp_date": exp_dt.strftime("%Y-%m-%d %H:%M"),
+                    "days_left": round(delta_days, 1),
+                    "is_expired": delta_days < 0,
+                })
+
+        results.sort(key=lambda x: x["exp_date"])
+        return results
+
     def find_line_id(self, username):
+        """Look up the numeric XUI line ID for an exact username match."""
         if not username:
             raise XUIClientError("Subscriber has no User ID set in the local database.")
 
@@ -144,6 +286,7 @@ class XUIClient:
         raise XUIClientError(f"Could not find line '{username}' in XUI (or session expired).")
 
     def get_line_form_defaults(self, line_id):
+        """Scrape existing form values and selected bouquets from `/line?id=<line_id>`."""
         url = f"{self.base_url}/line"
         resp = self.session.get(url, params={"id": line_id}, timeout=15)
         if "/login" in resp.url or 'name="password"' in resp.text:
@@ -157,7 +300,11 @@ class XUIClient:
             return m.group(1) if m else default
 
         def extract_textarea(name, default=""):
-            m = re.search(rf'<textarea[^>]*name=["\']{re.escape(name)}["\'][^>]*>(.*?)</textarea>', html, re.IGNORECASE | re.DOTALL)
+            m = re.search(
+                rf'<textarea[^>]*name=["\']{re.escape(name)}["\'][^>]*>(.*?)</textarea>',
+                html,
+                re.IGNORECASE | re.DOTALL,
+            )
             return m.group(1).strip() if m else default
 
         bouquets = []
@@ -183,20 +330,11 @@ class XUIClient:
             "bouquets": bouquets,
         }
 
-    def parse_xui_exp(self, exp_str):
-        cleaned = (exp_str or "").strip()
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-            try:
-                return datetime.strptime(cleaned, fmt)
-            except ValueError:
-                continue
-        return None
-
     def extend_line(self, username, months, fallback_date_obj, strict_expired_only=False):
         """
-        Verifies live XUI expiration before extending:
-        - strict_expired_only=True: only extends if XUI exp_date <= now (already expired in XUI).
-        - strict_expired_only=False: allows extending if XUI exp_date is expired OR expiring within current month.
+        Verify live XUI expiration before extending to prevent accidental double-spends:
+        - strict_expired_only=True: only extends if XUI exp_date <= now.
+        - strict_expired_only=False: allows extending if expired or expiring within the current month.
         """
         self.verify_session()
         line_id = self.find_line_id(username)
@@ -207,7 +345,9 @@ class XUIClient:
         now = datetime.now()
 
         if parsed_xui_exp is None:
-            raise XUIClientError(f"Could not read XUI expiration date for '{username}' (raw: '{current_exp}') — aborted to protect credits.")
+            raise XUIClientError(
+                f"Could not read XUI expiration date for '{username}' (raw: '{current_exp}') — aborted to protect credits."
+            )
 
         if strict_expired_only:
             if parsed_xui_exp > now:
@@ -267,108 +407,3 @@ class XUIClient:
                 raise XUIClientError("XUI session expired during save. Please paste a fresh PHPSESSID.")
 
         return line_id, new_exp_formatted, pkg_id, pkg_name
-
-    def get_credits(self):
-        """Returns current reseller credit balance as an int (or float if fractional)."""
-        self.verify_session()
-        try:
-            r = self.session.get(
-                f"{self.base_url}/api",
-                params={"action": "stats"},
-                headers={"X-Requested-With": "XMLHttpRequest", "Referer": f"{self.base_url}/dashboard"},
-                timeout=15,
-            )
-            if r.status_code == 200:
-                data = r.json()
-                if isinstance(data, dict) and data.get("owner_credits") is not None:
-                    raw = str(data["owner_credits"]).replace(",", "").strip()
-                    return int(float(raw)) if float(raw).is_integer() else float(raw)
-        except Exception:
-            pass
-
-        dash = self.session.get(f"{self.base_url}/dashboard", timeout=15).text
-        m = re.search(r'''id=["']owner_credits["'][^>]*>([^<]+)<''', dash, re.IGNORECASE)
-        if m:
-            raw = m.group(1).replace(",", "").strip()
-            return int(float(raw)) if float(raw).is_integer() else float(raw)
-        raise XUIClientError("Could not read available credits from XUI dashboard.")
-
-    def get_lines_expiring_within(self, days=7, include_recently_expired_days=3):
-        """
-        Fetches XUI lines expiring within `days` days from now
-        (also includes lines expired within `include_recently_expired_days` days).
-        Excludes trial lines.
-        """
-        self.verify_session()
-        ajax_headers = {
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": f"{self.base_url}/lines",
-        }
-        all_rows = []
-        start = 0
-        page_size = 500
-        while True:
-            params = {
-                "id": "lines",
-                "action": "lines",
-                "start": start,
-                "length": page_size,
-            }
-            r = self.session.get(f"{self.base_url}/table.php", params=params, headers=ajax_headers, timeout=20)
-            r.raise_for_status()
-            payload = r.json()
-            rows = payload.get("data", []) if isinstance(payload, dict) else []
-            if not rows:
-                break
-            all_rows.extend(rows)
-            if len(rows) < page_size:
-                break
-            start += page_size
-
-        now = datetime.now()
-        results = []
-
-        def strip_html(val):
-            txt = re.sub(r"<br\s*/?>", " ", str(val or ""), flags=re.IGNORECASE)
-            txt = re.sub(r"<[^>]+>", "", txt)
-            return re.sub(r"\s+", " ", txt).strip()
-
-        for row in all_rows:
-            if not isinstance(row, list) or len(row) < 10:
-                continue
-            line_id = strip_html(row[0])
-            username = strip_html(row[1])
-            owner = strip_html(row[3])
-            status_html = str(row[4] or "")
-            trial_html = str(row[5] or "")
-            max_conn = strip_html(row[8]) if len(row) > 8 else "1"
-            exp_clean = strip_html(row[9])
-
-            # Skip trial accounts
-            if "fa-check" in trial_html.lower() and "text-success" in trial_html.lower():
-                continue
-            # Skip disabled/banned lines
-            if "disabled" in status_html.lower() or "banned" in status_html.lower():
-                continue
-
-            exp_dt = self.parse_xui_exp(exp_clean)
-            if not exp_dt:
-                continue
-
-            delta_days = (exp_dt - now).total_seconds() / 86400.0
-            if -include_recently_expired_days <= delta_days <= days:
-                status_m = re.search(r'''title=["']([^"']+)["']''', status_html, re.IGNORECASE)
-                status_label = status_m.group(1) if status_m else ("Expired" if delta_days < 0 else "Active")
-                results.append({
-                    "line_id": line_id,
-                    "username": username,
-                    "owner": owner,
-                    "status": status_label,
-                    "max_connections": max_conn,
-                    "exp_date": exp_dt.strftime("%Y-%m-%d %H:%M"),
-                    "days_left": round(delta_days, 1),
-                    "is_expired": delta_days < 0,
-                })
-
-        results.sort(key=lambda x: x["exp_date"])
-        return results
