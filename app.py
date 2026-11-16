@@ -9,6 +9,7 @@ line extensions with the XUI One reseller panel.
 import hmac
 from werkzeug.security import check_password_hash
 import os
+import re
 import calendar
 from datetime import datetime, date, timedelta
 from flask import jsonify, Flask, render_template, request, redirect, url_for, flash, session
@@ -690,6 +691,126 @@ def xui_extend_week():
         conn.close()
 
     return redirect(url_for("index"))
+
+
+
+@app.route("/xui/next-available-slot", methods=["GET"])
+def xui_next_available_slot():
+    """
+    Find all XUI accounts matching the 4 slot-allocation rules:
+      1. At most 3 shared local accounts (current_accounts + 1 <= 3)
+      2. Maximum of 5 active/allocated connections on the XUI account
+      3. Not a trial (or disabled/banned) XUI account
+      4. Has room for the requested number of connections
+    """
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    try:
+        needed_conn = max(1, int(request.args.get("connections", 1)))
+    except ValueError:
+        needed_conn = 1
+
+    try:
+        exclude_sub_id = int(request.args.get("exclude_id", 0))
+    except ValueError:
+        exclude_sub_id = 0
+
+    if needed_conn > 5:
+        return jsonify({"error": "Requested connections exceed the maximum of 5 per XUI account."}), 400
+
+    conn = get_db_connection()
+    try:
+        xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
+        xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
+        if not xui_enabled:
+            return jsonify({"error": "XUI sync is disabled — enable XUI Sync to check live XUI accounts."}), 400
+
+        client = XUIClient(xui_phpsessid)
+        xui_lines = client.get_all_lines(include_trials=False)
+
+        # Aggregate current local subscriber counts & connections per userid
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(f"SELECT id, userid, connections, expirydate, notes FROM {TABLE}")
+        usage_map = {}
+        for row in cursor.fetchall():
+            if exclude_sub_id and row.get("id") == exclude_sub_id:
+                continue
+            uid = (row.get("userid") or "").strip().lower()
+            if not uid:
+                continue
+            exp_val = (row.get("expirydate") or "").strip().lower()
+            notes_val = (row.get("notes") or "").strip().lower()
+            # Ignore clearly cancelled entries so dead slots do not block active capacity
+            if exp_val in ("-----", "0000-00-00") or notes_val.startswith("cancelled"):
+                continue
+            try:
+                c_val = max(1, int(row.get("connections") or 1))
+            except (TypeError, ValueError):
+                c_val = 1
+            entry = usage_map.setdefault(uid, {"accounts": 0, "connections": 0})
+            entry["accounts"] += 1
+            entry["connections"] += c_val
+
+        def natural_sort_key(uname):
+            parts = re.split(r"(\d+)", uname.lower())
+            return [int(p) if p.isdigit() else p for p in parts]
+
+        candidates = []
+        for line in xui_lines:
+            uname = (line.get("username") or "").strip()
+            if not uname:
+                continue
+            # Rule 3: Not a trial or disabled account
+            if line.get("is_trial") or line.get("is_disabled"):
+                continue
+
+            # Rule 2: Max 5 connections cap on the XUI account
+            xui_max = min(5, int(line.get("max_connections") or 5))
+            xui_active = int(line.get("active_connections") or 0)
+            if xui_active + needed_conn > 5:
+                continue
+
+            local = usage_map.get(uname.lower(), {"accounts": 0, "connections": 0})
+            used_accounts = local["accounts"]
+            used_conns = local["connections"]
+
+            # Rule 1: At most 3 shared accounts after adding this subscriber
+            if used_accounts + 1 > 3:
+                continue
+
+            # Rule 4: Must have room for the new number of connections (capped at 5 / xui_max)
+            effective_cap = min(5, xui_max)
+            if used_conns + needed_conn > effective_cap:
+                continue
+
+            candidates.append({
+                "userid": uname,
+                "used_accounts": used_accounts,
+                "max_accounts": 3,
+                "used_connections": used_conns,
+                "max_connections": effective_cap,
+                "xui_active_connections": xui_active,
+                "exp_date": line.get("exp_date", ""),
+            })
+
+        candidates.sort(key=lambda c: natural_sort_key(c["userid"]))
+
+        if not candidates:
+            return jsonify({
+                "error": f"No eligible non-trial XUI account found with <3 accounts and room for +{needed_conn} connection(s)."
+            }), 404
+
+        return jsonify({
+            "slot": candidates[0],
+            "candidates": candidates,
+        })
+    except XUIClientError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Error finding available slot: {e}"}), 500
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
