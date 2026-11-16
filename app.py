@@ -297,8 +297,22 @@ def index():
     bulk_extend_total_people = sum(len(g["members"]) for g in bulk_extend_candidates)
 
 
+        all_bcc_emails = sorted({
+        (s.get("email") or "").strip()
+        for s in all_subscribers
+        if (s.get("email") or "").strip() and "@" in (s.get("email") or "")
+    })
+    active_bcc_emails = sorted({
+        (s.get("email") or "").strip()
+        for s in all_subscribers
+        if s.get("expiry_status") in ("active", "expiring_month")
+        and (s.get("email") or "").strip()
+        and "@" in (s.get("email") or "")
+    })
     return render_template(
         "index.html",
+        all_bcc_emails=all_bcc_emails,
+        active_bcc_emails=active_bcc_emails,
         subscribers=filtered_subscribers,
         search=search,
         active_filter=active_filter,

@@ -38,7 +38,8 @@
                     <a href="/?filter={{ active_filter }}" class="bg-slate-300 text-slate-800 px-3 py-2 rounded-lg hover:bg-slate-400">Clear</a>
                 {% endif %}
             </form>
-                    <a href="/logout" class="ml-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-3 py-2 rounded-lg transition text-sm">Logout</a>
+                    <button type="button" onclick="openAnnouncementModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5">Announcement Email</button>
+            <a href="/logout" class="ml-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-3 py-2 rounded-lg transition text-sm">Logout</a>
         </div>
     </div>
 
@@ -825,6 +826,168 @@
     document.addEventListener("DOMContentLoaded", loadEmailTemplateFields);
 </script>
 <!-- End Renewal Email Template Modal -->
+
+
+<!-- Announcement Email Modal -->
+<div id="announcementModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl max-w-2xl w-full p-6 shadow-xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Send Announcement Email</h3>
+                <p class="text-xs text-slate-500">Broadcast maintenance updates, app changes, or service news via BCC. Saved in your browser.</p>
+            </div>
+            <button type="button" onclick="closeAnnouncementModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+        </div>
+
+        <div class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+                <div class="flex items-center gap-4">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                        <input type="radio" name="announceAudience" value="active" checked onchange="updateAnnouncementCount()" class="text-indigo-600">
+                        <span>Active &amp; Expiring Only</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                        <input type="radio" name="announceAudience" value="all" onchange="updateAnnouncementCount()" class="text-indigo-600">
+                        <span>All Subscribers (incl. Expired)</span>
+                    </label>
+                </div>
+                <span class="text-slate-600">Recipients (BCC): <strong id="announceBccCount">0</strong></span>
+            </div>
+
+            <div>
+                <label for="announceEmailSubject" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Subject Line</label>
+                <input type="text" id="announceEmailSubject"
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label for="announceEmailBody" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Announcement Message</label>
+                <textarea id="announceEmailBody" rows="8"
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="copyAnnouncementField('bcc')" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 font-medium">Copy BCC Emails</button>
+                    <button type="button" onclick="copyAnnouncementField('body')" class="px-2.5 py-1 bg-white border border-slate-300 rounded hover:bg-slate-100 font-medium">Copy Message Body</button>
+                </div>
+                <button type="button" onclick="resetAnnouncementTemplate()" class="text-slate-500 hover:text-slate-800 underline">Reset to Default</button>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+            <span id="announceStatus" class="text-xs font-medium text-emerald-700"></span>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeAnnouncementModal()" class="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-sm">Close</button>
+                <button type="button" onclick="saveAnnouncementTemplate()" class="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 text-sm font-semibold">Save Draft</button>
+                <button type="button" onclick="saveAnnouncementTemplate(); sendAnnouncementEmail();" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-semibold">Open Email Client</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="announce-active-bcc" type="application/json">{{ active_bcc_emails | default([]) | tojson }}</script>
+<script id="announce-all-bcc" type="application/json">{{ all_bcc_emails | default([]) | tojson }}</script>
+<script>
+    const DEFAULT_ANNOUNCE_SUBJECT = "Important IPTV Service Update";
+    const DEFAULT_ANNOUNCE_BODY =
+        "Hi everyone,\n\n" +
+        "Here is a quick service update regarding your IPTV subscription:\n\n" +
+        "- [Enter announcement details here]\n\n" +
+        "If you have any questions or need assistance, just reply directly to this email.\n\n" +
+        "Thanks!";
+
+    function getSelectedAnnouncementBcc() {
+        const selected = document.querySelector("input[name='announceAudience']:checked");
+        const mode = selected ? selected.value : "active";
+        const scriptId = mode === "all" ? "announce-all-bcc" : "announce-active-bcc";
+        try {
+            return JSON.parse(document.getElementById(scriptId).textContent) || [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    function updateAnnouncementCount() {
+        const countEl = document.getElementById("announceBccCount");
+        if (countEl) countEl.textContent = getSelectedAnnouncementBcc().length;
+    }
+
+    function openAnnouncementModal() {
+        const subjEl = document.getElementById("announceEmailSubject");
+        const bodyEl = document.getElementById("announceEmailBody");
+        const statusEl = document.getElementById("announceStatus");
+        if (subjEl) subjEl.value = localStorage.getItem("iptv_announce_subject") || DEFAULT_ANNOUNCE_SUBJECT;
+        if (bodyEl) bodyEl.value = localStorage.getItem("iptv_announce_body") || DEFAULT_ANNOUNCE_BODY;
+        if (statusEl) statusEl.textContent = "";
+        updateAnnouncementCount();
+        document.getElementById("announcementModal").classList.remove("hidden");
+    }
+
+    function closeAnnouncementModal() {
+        document.getElementById("announcementModal").classList.add("hidden");
+    }
+
+    function saveAnnouncementTemplate() {
+        const subjEl = document.getElementById("announceEmailSubject");
+        const bodyEl = document.getElementById("announceEmailBody");
+        if (subjEl) localStorage.setItem("iptv_announce_subject", subjEl.value);
+        if (bodyEl) localStorage.setItem("iptv_announce_body", bodyEl.value);
+        const statusEl = document.getElementById("announceStatus");
+        if (statusEl) {
+            statusEl.textContent = "Announcement draft saved.";
+            setTimeout(() => { statusEl.textContent = ""; }, 2500);
+        }
+    }
+
+    function resetAnnouncementTemplate() {
+        localStorage.removeItem("iptv_announce_subject");
+        localStorage.removeItem("iptv_announce_body");
+        openAnnouncementModal();
+        const statusEl = document.getElementById("announceStatus");
+        if (statusEl) statusEl.textContent = "Reset to default.";
+    }
+
+    function copyAnnouncementField(kind) {
+        let text = "";
+        if (kind === "bcc") {
+            text = getSelectedAnnouncementBcc().join(", ");
+        } else {
+            text = document.getElementById("announceEmailBody").value || "";
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                const statusEl = document.getElementById("announceStatus");
+                if (statusEl) statusEl.textContent = (kind === "bcc" ? "BCC list" : "Message body") + " copied to clipboard.";
+            });
+        }
+    }
+
+    function sendAnnouncementEmail() {
+        const bccList = getSelectedAnnouncementBcc();
+        const bcc = bccList.join(",");
+        const subject = (document.getElementById("announceEmailSubject").value || DEFAULT_ANNOUNCE_SUBJECT).trim();
+        const body = document.getElementById("announceEmailBody").value || DEFAULT_ANNOUNCE_BODY;
+        const encodedBody = encodeURIComponent(body).replace(/%0A/g, "%0D%0A");
+
+        const fullMailto = "mailto:?bcc=" + encodeURIComponent(bcc) +
+            "&subject=" + encodeURIComponent(subject) +
+            "&body=" + encodedBody;
+
+        if (fullMailto.length > 1950) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(body).catch(() => {});
+            }
+            const shortMailto = "mailto:?bcc=" + encodeURIComponent(bcc) +
+                "&subject=" + encodeURIComponent(subject);
+            window.open(shortMailto, "_blank", "noopener,noreferrer");
+            alert("Because there are many BCC addresses (" + bccList.length + "), your announcement body was copied to your clipboard—press Cmd+V inside the compose window.");
+        } else {
+            window.open(fullMailto, "_blank", "noopener,noreferrer");
+        }
+    }
+</script>
+<!-- End Announcement Email Modal -->
 
 </body>
 </html>
