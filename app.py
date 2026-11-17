@@ -366,14 +366,12 @@ def update_xui_session():
 
 @app.route("/extend/<int:sub_id>", methods=["POST"])
 def extend_subscriber(sub_id):
+    """Extend a single subscriber's local DB expiry date only (does not touch XUI or shared rows)."""
     months = int(request.form.get("months", 1))
     current_filter = request.form.get("filter", "all")
     current_search = request.form.get("search", "")
 
     conn = get_db_connection()
-    xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
-    xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
-
     cursor = conn.cursor(dictionary=True)
     cursor.execute(f"SELECT firstname, lastname, userid, expirydate FROM {TABLE} WHERE id=%s", (sub_id,))
     sub = cursor.fetchone()
@@ -384,27 +382,13 @@ def extend_subscriber(sub_id):
         new_dt = add_months(base_date, months)
         new_expiry_str = format_db_date(new_dt)
 
-        xui_note = ""
-        if xui_enabled:
-            try:
-                client = XUIClient(xui_phpsessid)
-                line_id, xui_exp, pkg_id, pkg_name = client.extend_line(sub.get("userid", ""), months, new_dt)
-                xui_note = f" | XUI line #{line_id} extended to {xui_exp}"
-            except Exception as e:
-                cursor.close()
-                conn.close()
-                flash(f"XUI Extension Failed (local DB not changed): {e}", "warning")
-                return redirect(url_for("index", filter=current_filter, search=current_search))
+        cursor.execute(f"UPDATE {TABLE} SET expirydate=%s WHERE id=%s", (new_expiry_str, sub_id))
+        conn.commit()
 
-        uid_clean = (sub.get("userid") or "").strip()
-        if uid_clean:
-            cursor.execute(f"UPDATE {TABLE} SET expirydate=%s WHERE LOWER(TRIM(userid))=LOWER(%s)", (new_expiry_str, uid_clean))
-        else:
-            cursor.execute(f"UPDATE {TABLE} SET expirydate=%s WHERE id=%s", (new_expiry_str, sub_id))
         label = "1 year" if months == 12 else f"{months} month{'s' if months > 1 else ''}"
         flash(
-            f"Extended {sub['firstname']} {sub['lastname']} (#{sub_id}) by {label} "
-            f"({format_db_date(base_date)} -> {new_expiry_str}){xui_note}",
+            f"Extended {sub['firstname']} {sub['lastname']} (#{sub_id}) locally by {label} "
+            f"({format_db_date(base_date)} -> {new_expiry_str})",
             "success",
         )
 
