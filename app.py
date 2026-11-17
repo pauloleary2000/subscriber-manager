@@ -1,3 +1,4 @@
+from flask import Response
 """
 IPTV Subscriber Manager — Flask Web Application.
 
@@ -795,6 +796,231 @@ def xui_next_available_slot():
         return jsonify({"error": f"Error finding available slot: {e}"}), 500
     finally:
         conn.close()
+
+
+
+@app.route("/backup-db", methods=["GET"])
+def backup_database():
+    """Generate and download a timestamped SQL dump of the subscribers table."""
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(f"SHOW CREATE TABLE `{TABLE}`")
+        create_row = cursor.fetchone()
+        create_sql = list(create_row.values())[1] if create_row else ""
+
+        cursor.execute(f"SELECT * FROM `{TABLE}` ORDER BY id ASC")
+        rows = cursor.fetchall()
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        file_ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+
+        def sql_escape(val):
+            if val is None:
+                return "NULL"
+            if isinstance(val, (int, float)):
+                return str(val)
+            s = str(val)
+            s = (
+                s.replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\x00", "\\0")
+            )
+            return f"'{s}'"
+
+        lines = [
+            "-- IPTV Subscriber Manager SQL Backup",
+            f"-- Generated: {now_str}",
+            f"-- Table: {TABLE} ({len(rows)} rows)",
+            "",
+            'SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";',
+            "START TRANSACTION;",
+            'SET time_zone = "+00:00";',
+            "",
+            f"DROP TABLE IF EXISTS `{TABLE}`;",
+            f"{create_sql};",
+            "",
+        ]
+
+        if rows:
+            cols = list(rows[0].keys())
+            col_list = ", ".join(f"`{c}`" for c in cols)
+            lines.append(f"INSERT INTO `{TABLE}` ({col_list}) VALUES")
+            value_tuples = []
+            for r in rows:
+                vals = ", ".join(sql_escape(r[c]) for c in cols)
+                value_tuples.append(f"  ({vals})")
+            lines.append(",\n".join(value_tuples) + ";")
+            lines.append("")
+
+        lines.append("COMMIT;")
+        dump_content = "\n".join(lines) + "\n"
+
+        raw_name = (request.args.get("filename") or "").strip()
+        if raw_name:
+            # Strip directory traversal & invalid filename characters
+            clean_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(raw_name)).strip("._")
+            if not clean_name:
+                clean_name = f"subscribers_backup_{file_ts}.sql"
+            elif not clean_name.lower().endswith(".sql"):
+                clean_name += ".sql"
+        else:
+            clean_name = f"subscribers_backup_{file_ts}.sql"
+
+        return Response(
+            dump_content,
+            mimetype="application/sql",
+            headers={
+                "Content-Disposition": f'attachment; filename="{clean_name}"'
+            },
+        )
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+@app.route("/system-status", methods=["GET"])
+def system_status():
+    """
+    Check live availability and latency of:
+      1. XUI Admin Panel (HTTP reachability + active PHPSESSID login check)
+      2. Web Browser Player at iptvottawa.ca/webplayer
+    """
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    import requests as http_req
+
+    conn = get_db_connection()
+    try:
+        xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
+    finally:
+        conn.close()
+
+    def check_xui():
+        t0 = time.monotonic()
+        client = XUIClient(xui_phpsessid)
+        base_url = client.base_url
+        try:
+            # 1. Check if the XUI panel host/login page responds over HTTP
+            probe = http_req.get(f"{base_url}/login", timeout=8, allow_redirects=True)
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            if probe.status_code >= 500:
+                return {
+                    "state": "down",
+                    "label": f"Offline (HTTP {probe.status_code})",
+                    "detail": f"{base_url} returned HTTP {probe.status_code}",
+                    "latency_ms": latency_ms,
+                    "url": base_url,
+                }
+        except Exception as e:
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "state": "down",
+                "label": "Offline / Unreachable",
+                "detail": str(e),
+                "latency_ms": latency_ms,
+                "url": base_url,
+            }
+
+        # 2. Panel is online — verify whether we can log in / session is valid
+        if not xui_phpsessid:
+            return {
+                "state": "warn",
+                "label": "Online · Login Required",
+                "detail": "Panel is reachable, but no XUI PHPSESSID is configured.",
+                "latency_ms": latency_ms,
+                "url": base_url,
+            }
+        try:
+            client.verify_session()
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "state": "ok",
+                "label": f"Online & Logged In ({latency_ms}ms)",
+                "detail": f"Authenticated session active at {base_url}",
+                "latency_ms": latency_ms,
+                "url": base_url,
+            }
+        except Exception as e:
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "state": "warn",
+                "label": "Online · Session Expired",
+                "detail": f"Panel is online, but login check failed: {e}",
+                "latency_ms": latency_ms,
+                "url": base_url,
+            }
+
+    def check_webplayer():
+        player_url = os.getenv("WEBPLAYER_URL", "https://iptvottawa.ca/webplayer").strip()
+        t0 = time.monotonic()
+        try:
+            resp = http_req.get(
+                player_url,
+                timeout=10,
+                allow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0 (IPTV-Subscriber-Manager-HealthCheck)"},
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            body_low = (resp.text or "")[:8000].lower()
+
+            if resp.status_code >= 400:
+                return {
+                    "state": "down",
+                    "label": f"Offline (HTTP {resp.status_code})",
+                    "detail": f"{player_url} returned HTTP {resp.status_code}",
+                    "latency_ms": latency_ms,
+                    "url": player_url,
+                }
+
+            # Verify valid webplayer HTML/assets loaded rather than a blank/error page
+            has_html = ("<html" in body_low or "<!doctype" in body_low) and len(body_low.strip()) > 100
+            if not has_html:
+                return {
+                    "state": "warn",
+                    "label": f"Degraded ({latency_ms}ms)",
+                    "detail": f"HTTP {resp.status_code}, but response body was unexpectedly empty.",
+                    "latency_ms": latency_ms,
+                    "url": player_url,
+                }
+
+            return {
+                "state": "ok",
+                "label": f"Online & Working ({latency_ms}ms)",
+                "detail": f"HTTP {resp.status_code} OK at {resp.url}",
+                "latency_ms": latency_ms,
+                "url": player_url,
+            }
+        except Exception as e:
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            return {
+                "state": "down",
+                "label": "Offline / Unreachable",
+                "detail": str(e),
+                "latency_ms": latency_ms,
+                "url": player_url,
+            }
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_xui = pool.submit(check_xui)
+        f_web = pool.submit(check_webplayer)
+        xui_res = f_xui.result()
+        web_res = f_web.result()
+
+    return jsonify({
+        "xui": xui_res,
+        "webplayer": web_res,
+        "checked_at": datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
+    })
 
 
 if __name__ == "__main__":
