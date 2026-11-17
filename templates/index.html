@@ -1496,43 +1496,63 @@ function applySlotCandidate(uidInput, hintEl, candidates, idx, neededConn) {
 
 
 <!-- UserID Quick Reference Modal -->
-<div id="useridRefModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-200">
+<div id="useridRefModal" class="fixed inset-0 bg-slate-900/55 backdrop-blur-[1px] hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-5xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+        <!-- Modal Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-slate-50/80 border-b border-slate-200">
             <div>
-                <h3 class="text-lg font-bold text-slate-900">UserID Allocation Quick Reference</h3>
-                <p class="text-xs text-slate-500">Grouped by XUI UserID &middot; showing assigned subscribers, connections per user, and slot capacity</p>
+                <h3 class="text-base font-bold text-slate-900 tracking-tight">UserID Allocation Quick Reference</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Grouped by XUI UserID &middot; max 3 users &amp; 5 total connections per account</p>
             </div>
-            <div class="flex items-center gap-2">
-                <input type="search" id="useridRefSearch" name="userid_ref_filter_query" autocomplete="off"
-                       data-lpignore="true" data-1p-ignore="true" oninput="renderUseridRefTable()"
-                       placeholder="Filter UserID or name..."
-                       class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
-                    <input type="checkbox" id="useridRefHideCancelled" checked onchange="renderUseridRefTable()" class="rounded border-slate-300">
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="relative">
+                    <input type="search" id="useridRefSearch" name="userid_ref_filter_query" autocomplete="off"
+                           data-lpignore="true" data-1p-ignore="true" oninput="renderUseridRefTable()"
+                           placeholder="Filter UserID, name, or date..."
+                           class="w-56 border border-slate-300 rounded-lg pl-3 pr-7 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <button type="button" onclick="document.getElementById('useridRefSearch').value=''; renderUseridRefTable();"
+                            title="Clear filter"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm leading-none">&times;</button>
+                </div>
+                <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="useridRefOpenOnly" onchange="renderUseridRefTable()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span>Open slots only</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="useridRefHideCancelled" checked onchange="renderUseridRefTable()" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     <span>Hide cancelled</span>
                 </label>
-                <button type="button" onclick="closeUseridRefModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none ml-1">&times;</button>
+                <button type="button" onclick="closeUseridRefModal()"
+                        class="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg w-7 h-7 inline-flex items-center justify-center text-xl leading-none transition">&times;</button>
             </div>
         </div>
 
-        <div class="overflow-y-auto px-6 py-3 flex-1">
+        <!-- Scrollable Table -->
+        <div class="overflow-y-auto flex-1">
             <table class="w-full text-left border-collapse text-sm">
-                <thead>
-                    <tr class="border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
-                        <th class="py-2 pr-3 w-36">UserID</th>
-                        <th class="py-2 px-2">Assigned Subscribers (Connections)</th>
-                        <th class="py-2 px-2 text-center w-24">Users</th>
-                        <th class="py-2 pl-2 text-right w-28">Total Conn</th>
+                <thead class="sticky top-0 z-10 bg-slate-100/95 backdrop-blur border-b border-slate-200 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+                    <tr class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th class="py-2.5 pl-6 pr-3 w-40">UserID</th>
+                        <th class="py-2.5 px-3">
+                            <div class="grid grid-cols-12 items-center gap-2">
+                                <span class="col-span-6">Subscriber</span>
+                                <span class="col-span-2 text-center">Conn</span>
+                                <span class="col-span-4 text-right">Expiry</span>
+                            </div>
+                        </th>
+                        <th class="py-2.5 px-3 text-center w-24">Users</th>
+                        <th class="py-2.5 pl-3 pr-6 text-right w-28">Total Conn</th>
                     </tr>
                 </thead>
-                <tbody id="useridRefTbody" class="divide-y divide-slate-100"></tbody>
+                <tbody id="useridRefTbody" class="divide-y divide-slate-300/80"></tbody>
             </table>
         </div>
 
-        <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-xl">
-            <span id="useridRefSummary">0 UserIDs</span>
-            <button type="button" onclick="closeUseridRefModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition">
+        <!-- Footer -->
+        <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
+            <span id="useridRefSummary" class="font-medium tabular-nums">0 UserIDs</span>
+            <button type="button" onclick="closeUseridRefModal()"
+                    class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg transition cursor-pointer">
                 Close
             </button>
         </div>
@@ -1590,6 +1610,14 @@ function closeUseridRefModal() {
     modal.classList.remove("flex");
 }
 
+function escapeHtmlSafe(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
 function renderUseridRefTable() {
     let raw = [];
     try {
@@ -1599,6 +1627,7 @@ function renderUseridRefTable() {
     }
     const query = (document.getElementById("useridRefSearch").value || "").trim().toLowerCase();
     const hideCancelled = document.getElementById("useridRefHideCancelled").checked;
+    const openOnly = document.getElementById("useridRefOpenOnly").checked;
 
     const groups = new Map();
     raw.forEach(sub => {
@@ -1629,54 +1658,76 @@ function renderUseridRefTable() {
     let totalActiveUsers = 0;
     let totalActiveConns = 0;
 
-    sortedGroups.forEach(g => {
+    sortedGroups.forEach((g, idx) => {
+        if (openOnly && (g.activeCount >= 3 || g.totalConn >= 5)) return;
+
         const matchesQuery = !query
             || g.userid.toLowerCase().includes(query)
-            || g.members.some(m => m.name.toLowerCase().includes(query) || m.expirydate.toLowerCase().includes(query));
+            || g.members.some(m => (m.name || "").toLowerCase().includes(query) || (m.expirydate || "").toLowerCase().includes(query));
         if (!matchesQuery) return;
 
         shownGroups += 1;
         totalActiveUsers += g.activeCount;
         totalActiveConns += g.totalConn;
 
-        const userBadgeClass = g.activeCount > 3
-            ? "bg-rose-100 text-rose-800"
-            : (g.activeCount === 3 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800");
-        const connBadgeClass = g.totalConn > 5
-            ? "bg-rose-100 text-rose-800"
-            : (g.totalConn === 5 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-800");
+        // Sort members alphabetically inside each UserID group
+        const membersSorted = [...g.members].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
-        const memberPills = g.members.map(m => {
+        const userBadgeClass = g.activeCount > 3
+            ? "bg-rose-100 text-rose-800 border-rose-200"
+            : (g.activeCount === 3 ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-emerald-100 text-emerald-800 border-emerald-200");
+        const connBadgeClass = g.totalConn > 5
+            ? "bg-rose-100 text-rose-800 border-rose-200"
+            : (g.totalConn === 5 ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-slate-100 text-slate-700 border-slate-200");
+
+        const memberRows = membersSorted.map(m => {
             const c = Math.max(1, Number(m.connections) || 1);
-            const strike = m.isCancelled ? "line-through opacity-50" : "";
-            const expTag = m.expirydate ? ` <span class="text-slate-400">(${m.expirydate})</span>` : "";
-            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs mr-1.5 mb-1 ${strike}">
-                <span class="font-medium">${m.name || "Unnamed"}</span>
-                <span class="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 font-bold text-[11px]">${c}</span>${expTag}
-            </span>`;
+            const rowStyle = m.isCancelled ? "line-through opacity-45" : "";
+            const nameSafe = escapeHtmlSafe(m.name || "Unnamed");
+            const expSafe = escapeHtmlSafe(m.expirydate || "—");
+            return `
+                <div class="grid grid-cols-12 items-center gap-2 py-1 first:pt-0 last:pb-0 ${rowStyle}">
+                    <div class="col-span-6 text-xs font-medium text-slate-800 truncate" title="${nameSafe}">${nameSafe}</div>
+                    <div class="col-span-2 text-center">
+                        <span class="inline-block min-w-[1.5rem] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/70 font-bold text-[11px] tabular-nums">${c}</span>
+                    </div>
+                    <div class="col-span-4 text-right font-mono text-[11px] text-slate-500 tabular-nums">${expSafe}</div>
+                </div>
+            `;
         }).join("");
 
+        const stripeClass = idx % 2 === 1 ? "bg-slate-100/85" : "bg-white";
         const tr = document.createElement("tr");
-        tr.className = "hover:bg-slate-50 align-top";
+        tr.className = `${stripeClass} hover:bg-indigo-50/35 transition-colors align-middle`;
         tr.innerHTML = `
-            <td class="py-2.5 pr-3 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">${g.userid}</td>
-            <td class="py-2.5 px-2 leading-relaxed">${memberPills}</td>
-            <td class="py-2.5 px-2 text-center whitespace-nowrap">
-                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${userBadgeClass}">${g.activeCount} / 3</span>
+            <td class="py-3 pl-6 pr-3 font-mono text-xs font-bold text-slate-900 whitespace-nowrap align-top">
+                <span class="inline-block px-2 py-1 rounded-md bg-white border border-slate-300/90 text-slate-900 shadow-2xs">${escapeHtmlSafe(g.userid)}</span>
             </td>
-            <td class="py-2.5 pl-2 text-right whitespace-nowrap">
-                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${connBadgeClass}">${g.totalConn} / 5</span>
+            <td class="py-2.5 px-3 divide-y divide-slate-100">${memberRows}</td>
+            <td class="py-3 px-3 text-center whitespace-nowrap align-top">
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border tabular-nums ${userBadgeClass}">${g.activeCount} / 3</span>
+            </td>
+            <td class="py-3 pl-3 pr-6 text-right whitespace-nowrap align-top">
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border tabular-nums ${connBadgeClass}">${g.totalConn} / 5</span>
             </td>
         `;
         tbody.appendChild(tr);
     });
 
     if (shownGroups === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-xs text-slate-400">No matching UserIDs found.</td></tr>`;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="py-10 text-center text-xs text-slate-400">
+                    No matching UserID allocations found.
+                </td>
+            </tr>
+        `;
     }
 
-    document.getElementById("useridRefSummary").textContent =
-        `${shownGroups} UserID(s) · ${totalActiveUsers} active subscriber(s) · ${totalActiveConns} total connection(s)`;
+    const summaryEl = document.getElementById("useridRefSummary");
+    if (summaryEl) {
+        summaryEl.textContent = `${shownGroups} UserID${shownGroups === 1 ? "" : "s"} · ${totalActiveUsers} active user${totalActiveUsers === 1 ? "" : "s"} · ${totalActiveConns} total connection${totalActiveConns === 1 ? "" : "s"}`;
+    }
 }
 </script>
 
