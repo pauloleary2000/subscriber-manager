@@ -134,3 +134,8 @@ The **UserID Map** modal (`templates/index.html`) displays all local subscriber 
 
 * **Aligned Sub-Rows & Alternating Contrast**: Each UserID group lists every assigned subscriber in a high-contrast alternating-row 3-column grid (`Subscriber` | `Connections` | `Expiry`) with sticky headers and group capacity badges (`Users: N / 3` and `Total Conn: N / 5`).
 * **Interactive Filtering**: Supports live search by UserID, subscriber name, or expiry date, plus toggles to **Hide cancelled** accounts and filter to **Open slots only** (`< 3` users and `< 5` total connections).
+
+## Planned Enhancements (RFE)
+
+* **One-Click Copy Credentials / Welcome Pack**: Add a quick-copy action on subscriber rows and inside the **UserID Allocation Quick Reference** modal to copy a formatted welcome/login bundle (XUI username, password, portal/DNS URL, connection limit, and expiry date) directly to the clipboard.
+* **Unified Renewal Workflow (Local + XUI + Email)**: Combine local MariaDB expiry extension, live XUI line extension (with credit cost vs. available balance preview), and renewal confirmation email composition into a single modal workflow (`+1M`, `+3M`, `+12M`).
