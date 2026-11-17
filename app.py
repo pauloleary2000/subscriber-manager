@@ -1023,5 +1023,203 @@ def system_status():
     })
 
 
+
+def ensure_telegram_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS telegram_messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            update_id BIGINT UNIQUE,
+            chat_id VARCHAR(64) NOT NULL,
+            chat_title VARCHAR(255) DEFAULT '',
+            sender_name VARCHAR(255) DEFAULT '',
+            message_text TEXT,
+            msg_timestamp INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+    conn.commit()
+    cursor.close()
+
+
+@app.route("/telegram/settings", methods=["GET", "POST"])
+def telegram_settings():
+    """Get or save Telegram Bot Token and optional Chat ID filter."""
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    conn = get_db_connection()
+    try:
+        if request.method == "POST":
+            data = request.get_json(silent=True) or request.form
+            token = (data.get("bot_token") or "").strip()
+            chat_id = (data.get("chat_id") or "").strip()
+            set_setting(conn, "telegram_bot_token", token)
+            set_setting(conn, "telegram_chat_id", chat_id)
+            return jsonify({"ok": True, "configured": bool(token)})
+
+        token = get_setting(conn, "telegram_bot_token", os.getenv("TELEGRAM_BOT_TOKEN", ""))
+        chat_id = get_setting(conn, "telegram_chat_id", os.getenv("TELEGRAM_CHAT_ID", ""))
+        masked = (token[:6] + "..." + token[-4:]) if len(token) > 12 else ("Configured" if token else "")
+        return jsonify({
+            "configured": bool(token),
+            "masked_token": masked,
+            "chat_id": chat_id,
+        })
+    finally:
+        conn.close()
+
+
+@app.route("/telegram/messages", methods=["GET"])
+def telegram_messages():
+    """Poll Telegram Bot API for new updates, store them in MariaDB, and return recent messages."""
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    import requests as http_req
+
+    conn = get_db_connection()
+    try:
+        ensure_telegram_table(conn)
+        token = get_setting(conn, "telegram_bot_token", os.getenv("TELEGRAM_BOT_TOKEN", "")).strip()
+        filter_chat_id = get_setting(conn, "telegram_chat_id", os.getenv("TELEGRAM_CHAT_ID", "")).strip()
+
+        if not token:
+            return jsonify({
+                "configured": False,
+                "messages": [],
+                "error": "No Telegram Bot Token configured yet.",
+            })
+
+        last_offset = int(get_setting(conn, "telegram_last_offset", "0") or "0")
+        api_error = ""
+        bot_username = ""
+
+        try:
+            params = {"timeout": 1, "limit": 50}
+            if last_offset > 0:
+                params["offset"] = last_offset + 1
+
+            resp = http_req.get(
+                f"https://api.telegram.org/bot{token}/getUpdates",
+                params=params,
+                timeout=8,
+            )
+            payload = resp.json()
+
+            if not payload.get("ok"):
+                api_error = payload.get("description") or f"Telegram API HTTP {resp.status_code}"
+            else:
+                updates = payload.get("result") or []
+                max_uid = last_offset
+                cur = conn.cursor()
+                for upd in updates:
+                    uid = int(upd.get("update_id", 0))
+                    if uid > max_uid:
+                        max_uid = uid
+
+                    msg = (
+                        upd.get("message")
+                        or upd.get("edited_message")
+                        or upd.get("channel_post")
+                        or upd.get("edited_channel_post")
+                    )
+                    if not msg:
+                        continue
+
+                    chat = msg.get("chat") or {}
+                    cid = str(chat.get("id", ""))
+                    ctitle = (
+                        chat.get("title")
+                        or " ".join(filter(None, [chat.get("first_name"), chat.get("last_name")]))
+                        or chat.get("username")
+                        or cid
+                    )
+
+                    sender = msg.get("from") or msg.get("sender_chat") or {}
+                    sname = (
+                        " ".join(filter(None, [sender.get("first_name"), sender.get("last_name")]))
+                        or sender.get("title")
+                        or sender.get("username")
+                        or ctitle
+                        or "Unknown"
+                    )
+
+                    text = (
+                        msg.get("text")
+                        or msg.get("caption")
+                        or ("[Photo/Media]" if (msg.get("photo") or msg.get("document") or msg.get("video")) else "")
+                    ).strip()
+                    if not text:
+                        continue
+
+                    ts = int(msg.get("date", 0))
+                    cur.execute(
+                        """
+                        INSERT IGNORE INTO telegram_messages
+                            (update_id, chat_id, chat_title, sender_name, message_text, msg_timestamp)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (uid, cid, ctitle[:255], sname[:255], text, ts),
+                    )
+                conn.commit()
+                cur.close()
+
+                if max_uid > last_offset:
+                    set_setting(conn, "telegram_last_offset", str(max_uid))
+        except Exception as e:
+            api_error = str(e)
+
+        # Fetch most recent 25 stored messages
+        cur = conn.cursor(dictionary=True)
+        if filter_chat_id:
+            cur.execute(
+                """
+                SELECT id, update_id, chat_id, chat_title, sender_name, message_text, msg_timestamp
+                FROM telegram_messages
+                WHERE chat_id = %s
+                ORDER BY msg_timestamp DESC, id DESC
+                LIMIT 25
+                """,
+                (filter_chat_id,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, update_id, chat_id, chat_title, sender_name, message_text, msg_timestamp
+                FROM telegram_messages
+                ORDER BY msg_timestamp DESC, id DESC
+                LIMIT 25
+                """
+            )
+        rows = cur.fetchall()
+        cur.close()
+
+        formatted = []
+        for r in rows:
+            ts = int(r.get("msg_timestamp") or 0)
+            time_label = datetime.fromtimestamp(ts).strftime("%b %d, %I:%M %p") if ts else ""
+            formatted.append({
+                "id": r["id"],
+                "update_id": r["update_id"],
+                "chat_id": r["chat_id"],
+                "chat_title": r["chat_title"],
+                "sender_name": r["sender_name"],
+                "text": r["message_text"],
+                "time_label": time_label,
+            })
+
+        return jsonify({
+            "configured": True,
+            "messages": formatted,
+            "latest_id": formatted[0]["id"] if formatted else 0,
+            "filter_chat_id": filter_chat_id,
+            "warning": api_error,
+            "checked_at": datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
+        })
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

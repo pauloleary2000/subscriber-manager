@@ -1730,5 +1730,252 @@ function refreshSystemStatus() {
 document.addEventListener("DOMContentLoaded", refreshSystemStatus);
 </script>
 
+
+<!-- Floating Bottom-Right Telegram Chat Drawer -->
+<div id="tgDockPanel" class="fixed bottom-4 right-4 z-40 w-[370px] max-w-[calc(100vw-2rem)] bg-white border border-slate-300 rounded-xl shadow-2xl overflow-hidden transition-all">
+    <!-- Header Bar (Click to Expand / Collapse) -->
+    <div onclick="toggleTgDrawer()" class="bg-sky-700 hover:bg-sky-800 text-white px-3.5 py-2.5 flex items-center justify-between cursor-pointer select-none">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-300" id="tgLiveDot"></span>
+            <span class="font-semibold text-xs tracking-wide">Telegram Chat</span>
+            <span id="tgUnreadBadge" class="hidden px-1.5 py-0.2 bg-amber-400 text-slate-900 font-bold text-[11px] rounded-full">0</span>
+        </div>
+        <div class="flex items-center gap-1.5" onclick="event.stopPropagation()">
+            <button type="button" onclick="fetchTelegramMessages(true)" title="Check for new messages now"
+                    class="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-medium cursor-pointer">
+                Refresh
+            </button>
+            <button type="button" onclick="toggleTgSettings()" title="Bot Token Settings"
+                    class="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-medium cursor-pointer">
+                Setup
+            </button>
+            <button type="button" onclick="toggleTgDrawer()" id="tgToggleChevron"
+                    class="px-1.5 py-0.5 text-sky-100 hover:text-white text-xs font-bold cursor-pointer">
+                &#9650;
+            </button>
+        </div>
+    </div>
+
+    <!-- Collapsible Body -->
+    <div id="tgDrawerBody" class="hidden flex-col max-h-[340px]">
+        <!-- Inline Settings Drawer -->
+        <div id="tgSettingsBox" class="hidden bg-slate-50 border-b border-slate-200 p-3 space-y-2 text-xs">
+            <div class="font-semibold text-slate-700">Telegram Bot Configuration</div>
+            <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">Bot Token (from @BotFather)</label>
+                <input type="password" id="tgBotTokenInput" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            </div>
+            <div>
+                <label class="block text-[11px] text-slate-500 mb-0.5">Filter by Chat ID (optional — leave blank for all chats)</label>
+                <input type="text" id="tgChatIdInput" placeholder="e.g. -1001234567890"
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            </div>
+            <div class="flex items-center justify-between pt-1">
+                <span id="tgSettingsStatus" class="text-[11px] text-slate-500"></span>
+                <button type="button" onclick="saveTelegramSettings()"
+                        class="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md text-xs cursor-pointer">
+                    Save Token
+                </button>
+            </div>
+        </div>
+
+        <!-- Warning Banner -->
+        <div id="tgWarningBanner" class="hidden bg-amber-50 border-b border-amber-200 px-3 py-1.5 text-[11px] text-amber-800"></div>
+
+        <!-- Message List -->
+        <div id="tgMessagesList" class="overflow-y-auto divide-y divide-slate-100 max-h-[250px] p-2 space-y-1.5 bg-slate-50/50">
+            <div class="py-6 text-center text-xs text-slate-400">Loading Telegram messages...</div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-3 py-1.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+            <span id="tgFooterStatus">Auto-checks every 30s</span>
+            <button type="button" onclick="markAllTgRead()" class="text-sky-700 hover:underline font-medium cursor-pointer">Mark read</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let tgDrawerOpen = localStorage.getItem("iptv_tg_open") === "1";
+let tgLatestSeenId = parseInt(localStorage.getItem("iptv_tg_seen_id") || "0", 10);
+let tgCurrentLatestId = 0;
+
+function applyTgDrawerState() {
+    const body = document.getElementById("tgDrawerBody");
+    const chev = document.getElementById("tgToggleChevron");
+    if (!body || !chev) return;
+    if (tgDrawerOpen) {
+        body.classList.remove("hidden");
+        body.classList.add("flex");
+        chev.innerHTML = "&#9660;";
+        if (tgCurrentLatestId > tgLatestSeenId) {
+            tgLatestSeenId = tgCurrentLatestId;
+            localStorage.setItem("iptv_tg_seen_id", String(tgLatestSeenId));
+            updateTgUnreadBadge(0);
+        }
+    } else {
+        body.classList.add("hidden");
+        body.classList.remove("flex");
+        chev.innerHTML = "&#9650;";
+    }
+}
+
+function toggleTgDrawer() {
+    tgDrawerOpen = !tgDrawerOpen;
+    localStorage.setItem("iptv_tg_open", tgDrawerOpen ? "1" : "0");
+    applyTgDrawerState();
+}
+
+function toggleTgSettings() {
+    if (!tgDrawerOpen) {
+        tgDrawerOpen = true;
+        localStorage.setItem("iptv_tg_open", "1");
+        applyTgDrawerState();
+    }
+    const box = document.getElementById("tgSettingsBox");
+    if (!box) return;
+    const willShow = box.classList.contains("hidden");
+    box.classList.toggle("hidden");
+    if (willShow) {
+        fetch("/telegram/settings")
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById("tgChatIdInput").value = d.chat_id || "";
+                document.getElementById("tgSettingsStatus").textContent = d.configured
+                    ? ("Saved: " + d.masked_token)
+                    : "Not configured";
+            });
+    }
+}
+
+function saveTelegramSettings() {
+    const token = document.getElementById("tgBotTokenInput").value.trim();
+    const chatId = document.getElementById("tgChatIdInput").value.trim();
+    const statusEl = document.getElementById("tgSettingsStatus");
+    statusEl.textContent = "Saving...";
+
+    fetch("/telegram/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_token: token, chat_id: chatId })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            statusEl.textContent = "Saved!";
+            document.getElementById("tgBotTokenInput").value = "";
+            setTimeout(() => {
+                document.getElementById("tgSettingsBox").classList.add("hidden");
+                fetchTelegramMessages(true);
+            }, 600);
+        } else {
+            statusEl.textContent = d.error || "Save failed";
+        }
+    });
+}
+
+function updateTgUnreadBadge(count) {
+    const badge = document.getElementById("tgUnreadBadge");
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
+    }
+}
+
+function markAllTgRead() {
+    if (tgCurrentLatestId > 0) {
+        tgLatestSeenId = tgCurrentLatestId;
+        localStorage.setItem("iptv_tg_seen_id", String(tgLatestSeenId));
+    }
+    updateTgUnreadBadge(0);
+}
+
+function escapeHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function fetchTelegramMessages(manual) {
+    const footer = document.getElementById("tgFooterStatus");
+    if (manual && footer) footer.textContent = "Checking Telegram...";
+
+    fetch("/telegram/messages")
+        .then(r => r.json())
+        .then(data => {
+            const listEl = document.getElementById("tgMessagesList");
+            const warnEl = document.getElementById("tgWarningBanner");
+            const dotEl = document.getElementById("tgLiveDot");
+
+            if (!data.configured) {
+                dotEl.className = "w-2 h-2 rounded-full bg-amber-300";
+                listEl.innerHTML = `<div class="p-4 text-center text-xs text-slate-600 space-y-2">
+                    <p>Connect your Telegram bot to view recent chat messages here.</p>
+                    <button type="button" onclick="toggleTgSettings()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md text-xs cursor-pointer">
+                        Enter Bot Token
+                    </button>
+                </div>`;
+                if (footer) footer.textContent = "Setup required";
+                return;
+            }
+
+            if (data.warning) {
+                warnEl.textContent = data.warning;
+                warnEl.classList.remove("hidden");
+                dotEl.className = "w-2 h-2 rounded-full bg-amber-300";
+            } else {
+                warnEl.classList.add("hidden");
+                dotEl.className = "w-2 h-2 rounded-full bg-emerald-300";
+            }
+
+            const msgs = data.messages || [];
+            tgCurrentLatestId = data.latest_id || 0;
+
+            if (tgDrawerOpen && tgCurrentLatestId > tgLatestSeenId) {
+                tgLatestSeenId = tgCurrentLatestId;
+                localStorage.setItem("iptv_tg_seen_id", String(tgLatestSeenId));
+                updateTgUnreadBadge(0);
+            } else {
+                const unread = msgs.filter(m => m.id > tgLatestSeenId).length;
+                updateTgUnreadBadge(unread);
+            }
+
+            if (msgs.length === 0) {
+                listEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">No messages received yet. Make sure your bot is added to the chat and Group Privacy is turned OFF in @BotFather.</div>`;
+            } else {
+                listEl.innerHTML = msgs.map(m => `
+                    <div class="bg-white border border-slate-200 rounded-lg p-2.5 shadow-2xs">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="font-semibold text-xs text-slate-900 truncate">${escapeHtml(m.sender_name)}</span>
+                            <span class="text-[10px] text-slate-400 whitespace-nowrap">${escapeHtml(m.time_label)}</span>
+                        </div>
+                        <div class="text-xs text-slate-700 whitespace-pre-wrap break-words leading-snug">${escapeHtml(m.text)}</div>
+                        <div class="mt-1 text-[10px] text-slate-400 font-mono truncate">${escapeHtml(m.chat_title)} (${escapeHtml(m.chat_id)})</div>
+                    </div>
+                `).join("");
+            }
+
+            if (footer && data.checked_at) {
+                footer.textContent = "Updated " + data.checked_at;
+            }
+        })
+        .catch(() => {
+            if (footer) footer.textContent = "Poll error";
+        });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    applyTgDrawerState();
+    fetchTelegramMessages(false);
+    setInterval(() => fetchTelegramMessages(false), 30000);
+});
+</script>
+
 </body>
 </html>
