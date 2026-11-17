@@ -148,6 +148,52 @@ def set_setting(conn, key, value):
     conn.commit()
     cursor.close()
 
+DEFAULT_SETUP_INSTRUCTIONS = """Setup Instructions:
+- Firestick / Android TV:
+  * TiviMate 5.3.x - Downloader Code: 7499486
+  * Sparkle - Downloader Code: 6610178
+  * Hive Smarters - https://aftv.news/174608 (Downloader Code: 174608)
+- Apple TV / iOS: Download UHF or Smarters Player Lite from the App Store and log in with Xtream Codes API.
+- Windows / Mac: Use IPTV Smarters or VLC with your Xtream Codes login details."""
+
+DEFAULT_PAYPAL_LINKS = {
+    "monthly_1": "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-2MM46206S1144363TMUE273Q",
+    "monthly_multi": "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-2MM46206S1144363TMUE273Q",
+    "annual_1": "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8MR10545P02386918MVGPVTI",
+    "annual_multi": "https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-80B51581U2591334NMVGPWNI",
+}
+
+def get_onboarding_config(conn):
+    return {
+        "portal_url": get_setting(conn, "onboarding_portal_url", ""),
+        "default_password": get_setting(conn, "onboarding_default_password", ""),
+        "setup_instructions": get_setting(conn, "onboarding_setup_instructions", DEFAULT_SETUP_INSTRUCTIONS),
+        "paypal_monthly_1": get_setting(conn, "paypal_monthly_1", DEFAULT_PAYPAL_LINKS["monthly_1"]),
+        "paypal_monthly_multi": get_setting(conn, "paypal_monthly_multi", DEFAULT_PAYPAL_LINKS["monthly_multi"]),
+        "paypal_annual_1": get_setting(conn, "paypal_annual_1", DEFAULT_PAYPAL_LINKS["annual_1"]),
+        "paypal_annual_multi": get_setting(conn, "paypal_annual_multi", DEFAULT_PAYPAL_LINKS["annual_multi"]),
+    }
+
+
+def load_onboarding_config_safe():
+    conn = None
+    try:
+        conn = get_db_connection()
+        return get_onboarding_config(conn)
+    except Exception:
+        return {
+            "portal_url": "",
+            "default_password": "Canada123",
+            "setup_instructions": DEFAULT_SETUP_INSTRUCTIONS,
+            "paypal_monthly_1": DEFAULT_PAYPAL_LINKS["monthly_1"],
+            "paypal_monthly_multi": DEFAULT_PAYPAL_LINKS["monthly_multi"],
+            "paypal_annual_1": DEFAULT_PAYPAL_LINKS["annual_1"],
+            "paypal_annual_multi": DEFAULT_PAYPAL_LINKS["annual_multi"],
+        }
+    finally:
+        if conn:
+            conn.close()
+
 def get_end_of_month(today):
     last_day = calendar.monthrange(today.year, today.month)[1]
     return date(today.year, today.month, last_day)
@@ -325,6 +371,7 @@ def index():
         all_bcc_emails=all_bcc_emails,
         active_bcc_emails=active_bcc_emails,
         subscribers=filtered_subscribers,
+        onboarding_config=load_onboarding_config_safe(),
         all_subscribers=all_subscribers,
         search=search,
         active_filter=active_filter,
@@ -492,15 +539,31 @@ def bulk_extend_subscribers():
 
     return redirect(url_for("index", filter=current_filter, search=current_search))
 
+@app.route("/onboarding-settings", methods=["POST"])
+def save_onboarding_settings():
+    conn = get_db_connection()
+    try:
+        set_setting(conn, "onboarding_portal_url", request.form.get("onboarding_portal_url", "").strip())
+        set_setting(conn, "onboarding_default_password", request.form.get("onboarding_default_password", "").strip())
+        set_setting(conn, "onboarding_setup_instructions", request.form.get("onboarding_setup_instructions", "").strip())
+        set_setting(conn, "paypal_monthly_1", request.form.get("paypal_monthly_1", "").strip())
+        set_setting(conn, "paypal_monthly_multi", request.form.get("paypal_monthly_multi", "").strip())
+        set_setting(conn, "paypal_annual_1", request.form.get("paypal_annual_1", "").strip())
+        set_setting(conn, "paypal_annual_multi", request.form.get("paypal_annual_multi", "").strip())
+    finally:
+        conn.close()
+    flash("Saved onboarding welcome email defaults.", "success")
+    return redirect(url_for("index"))
+
 @app.route("/add", methods=["POST"])
 def add_subscriber():
-    firstname = request.form["firstname"].strip()
-    lastname = request.form["lastname"].strip()
-    email = request.form["email"].strip()
-    userid = request.form["userid"].strip()
-    expirydate = request.form["expirydate"].strip()
+    firstname = (request.form.get("firstname") or request.form.get("first_name") or "").strip()
+    lastname = (request.form.get("lastname") or request.form.get("last_name") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    userid = (request.form.get("userid") or request.form.get("user_id") or "").strip()
+    expirydate = (request.form.get("expirydate") or request.form.get("expiry_date") or "").strip()
     connections = int(request.form.get("connections") or 1)
-    notes = request.form["notes"].strip()
+    notes = (request.form.get("notes") or "").strip()
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -518,13 +581,13 @@ def add_subscriber():
 
 @app.route("/update/<int:sub_id>", methods=["POST"])
 def update_subscriber(sub_id):
-    firstname = request.form["firstname"].strip()
-    lastname = request.form["lastname"].strip()
-    email = request.form["email"].strip()
-    userid = request.form["userid"].strip()
-    expirydate = request.form["expirydate"].strip()
+    firstname = (request.form.get("firstname") or request.form.get("first_name") or "").strip()
+    lastname = (request.form.get("lastname") or request.form.get("last_name") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    userid = (request.form.get("userid") or request.form.get("user_id") or "").strip()
+    expirydate = (request.form.get("expirydate") or request.form.get("expiry_date") or "").strip()
     connections = int(request.form.get("connections") or 1)
-    notes = request.form["notes"].strip()
+    notes = (request.form.get("notes") or "").strip()
 
     conn = get_db_connection()
     cursor = conn.cursor()

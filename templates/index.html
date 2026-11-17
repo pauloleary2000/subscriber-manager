@@ -282,37 +282,58 @@
                     <td data-sort="{{ (sub.notes or '') | lower }}" class="p-4 text-slate-600 max-w-xs truncate" title="{{ sub.notes or '' }}">
                         {{ sub.notes or '—' }}
                     </td>
-                    <td class="px-4 py-3 text-right whitespace-nowrap" style="position:sticky;right:0;z-index:5;background:#ffffff;box-shadow:-4px 0 6px -2px rgba(0,0,0,0.06);">
-                        {% if sub.has_valid_email %}
-                        <button type="button"
-                                onclick="openSingleEmailModal(this)"
-                                data-firstname="{{ sub.firstname or '' }}"
-                                data-lastname="{{ sub.lastname or '' }}"
-                                data-email="{{ sub.email or '' }}"
-                                data-userid="{{ sub.userid or '' }}"
-                                data-expirydate="{{ sub.expirydate or '' }}"
-                                data-connections="{{ sub.connections or 1 }}"
-                                title="Send renewal email to {{ sub.email }}"
-                                class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded transition mr-1">
-                            Email
-                        </button>
-                        {% endif %}
-                        <button type="button"
-                                onclick="openEditModal(this)"
-                                data-id="{{ sub.id }}"
-                                data-firstname="{{ sub.firstname or '' }}"
-                                data-lastname="{{ sub.lastname or '' }}"
-                                data-email="{{ sub.email or '' }}"
-                                data-userid="{{ sub.userid or '' }}"
-                                data-expirydate="{{ sub.expirydate or '' }}"
-                                data-connections="{{ sub.connections or 1 }}"
-                                data-notes="{{ sub.notes or '' }}"
-                                class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition">
-                            Edit
-                        </button>
-                        <form method="POST" action="/delete/{{ sub.id }}" class="inline" onsubmit="return confirm('Delete subscriber #{{ sub.id }} ({{ sub.firstname }} {{ sub.lastname }})?');">
-                            <button type="submit" class="text-rose-600 hover:underline font-medium">Delete</button>
-                        </form>
+                    <td class="px-2.5 py-2 text-right whitespace-nowrap" style="position:sticky;right:0;z-index:5;background:#ffffff;box-shadow:-4px 0 6px -2px rgba(0,0,0,0.06);">
+                        <div class="inline-grid grid-cols-2 gap-1 w-[7.5rem]">
+                            {% if sub.has_valid_email %}
+                            <button type="button"
+                                    onclick="openWelcomeModal(this)"
+                                    data-firstname="{{ sub.firstname or '' }}"
+                                    data-lastname="{{ sub.lastname or '' }}"
+                                    data-email="{{ sub.email or '' }}"
+                                    data-userid="{{ sub.userid or '' }}"
+                                    data-expirydate="{{ sub.expirydate or '' }}"
+                                    data-connections="{{ sub.connections or 1 }}"
+                                    title="Send welcome & setup email to {{ sub.email }}"
+                                    class="w-full px-1.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold rounded text-center transition cursor-pointer">
+                                Welcome
+                            </button>
+                            <button type="button"
+                                    onclick="openSingleEmailModal(this)"
+                                    data-firstname="{{ sub.firstname or '' }}"
+                                    data-lastname="{{ sub.lastname or '' }}"
+                                    data-email="{{ sub.email or '' }}"
+                                    data-userid="{{ sub.userid or '' }}"
+                                    data-expirydate="{{ sub.expirydate or '' }}"
+                                    data-connections="{{ sub.connections or 1 }}"
+                                    title="Send renewal email to {{ sub.email }}"
+                                    class="w-full px-1.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold rounded text-center transition cursor-pointer">
+                                Email
+                            </button>
+                            {% else %}
+                            <span class="px-1.5 py-1 bg-slate-100 text-slate-400 text-[11px] font-medium rounded text-center select-none" title="No valid email">Welcome</span>
+                            <span class="px-1.5 py-1 bg-slate-100 text-slate-400 text-[11px] font-medium rounded text-center select-none" title="No valid email">Email</span>
+                            {% endif %}
+                            <button type="button"
+                                    onclick="openEditModal(this)"
+                                    data-id="{{ sub.id }}"
+                                    data-firstname="{{ sub.firstname or '' }}"
+                                    data-lastname="{{ sub.lastname or '' }}"
+                                    data-email="{{ sub.email or '' }}"
+                                    data-userid="{{ sub.userid or '' }}"
+                                    data-expirydate="{{ sub.expirydate or '' }}"
+                                    data-connections="{{ sub.connections or 1 }}"
+                                    data-notes="{{ sub.notes or '' }}"
+                                    class="w-full px-1.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold rounded text-center transition cursor-pointer">
+                                Edit
+                            </button>
+                            <form method="POST" action="/delete/{{ sub.id }}" class="w-full m-0"
+                                  onsubmit="return confirm('Delete subscriber {{ sub.firstname }} {{ sub.lastname }}?');">
+                                <button type="submit"
+                                        class="w-full px-1.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded text-center transition cursor-pointer">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
@@ -2072,6 +2093,236 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .catch(() => {});
 });
+</script>
+
+
+<!-- Subscriber Welcome / Onboarding Email Modal -->
+<div id="welcomeEmailModal" class="fixed inset-0 bg-slate-900/55 backdrop-blur-[1px] hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-200">
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Subscriber Welcome &amp; Setup Email</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Generates credentials, app downloader instructions, and optional PayPal auto-pay link</p>
+            </div>
+            <button type="button" onclick="closeWelcomeModal()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-4 flex-1">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">To Email</label>
+                    <input type="text" id="welcomeTo" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">PayPal Pre-Auth Link</label>
+                    <select id="welcomePaypalPlan" onchange="rebuildWelcomeBody()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800 bg-white">
+                        <option value="auto_monthly">Auto (Monthly Plan)</option>
+                        <option value="auto_annual">Auto (Annual Plan)</option>
+                        <option value="none">Do Not Include PayPal Link</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Password Override</label>
+                    <input type="text" id="welcomePasswordInput" oninput="rebuildWelcomeBody()"
+                           value="{{ onboarding_config.default_password if onboarding_config is defined else '' }}"
+                           placeholder="Default password"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
+                <input type="text" id="welcomeSubject" oninput="updateWelcomeMailto()"
+                       class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase">Email Body</label>
+                    <button type="button" onclick="copyWelcomeBody(this)"
+                            class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                        Copy Body
+                    </button>
+                </div>
+                <textarea id="welcomeBody" rows="12" oninput="updateWelcomeMailto()"
+                          class="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 leading-relaxed"></textarea>
+            </div>
+
+            <!-- Collapsible Default Template Settings -->
+            <details class="border border-slate-200 rounded-xl bg-slate-50/70 p-3">
+                <summary class="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                    Configure Default Credentials, Portal URL &amp; PayPal Plans (Saved in DB)
+                </summary>
+                <form method="POST" action="/onboarding-settings" class="mt-3 space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Portal / Server URL</label>
+                            <input type="text" name="onboarding_portal_url"
+                                   value="{{ onboarding_config.portal_url if onboarding_config is defined else '' }}"
+                                   placeholder="http://your-portal-url:8080"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Default Password</label>
+                            <input type="text" name="onboarding_default_password"
+                                   value="{{ onboarding_config.default_password if onboarding_config is defined else '' }}"
+                                   placeholder="Default account password"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">App Setup Instructions</label>
+                        <textarea name="onboarding_setup_instructions" rows="5"
+                                  class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono bg-white">{{ onboarding_config.setup_instructions if onboarding_config is defined else '' }}</textarea>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Monthly (1 Conn) PayPal URL</label>
+                            <input type="text" name="paypal_monthly_1"
+                                   value="{{ onboarding_config.paypal_monthly_1 if onboarding_config is defined else '' }}"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Monthly (Multi Conn) PayPal URL</label>
+                            <input type="text" name="paypal_monthly_multi"
+                                   value="{{ onboarding_config.paypal_monthly_multi if onboarding_config is defined else '' }}"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Annual (1 Conn) PayPal URL</label>
+                            <input type="text" name="paypal_annual_1"
+                                   value="{{ onboarding_config.paypal_annual_1 if onboarding_config is defined else '' }}"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Annual (Multi Conn) PayPal URL</label>
+                            <input type="text" name="paypal_annual_multi"
+                                   value="{{ onboarding_config.paypal_annual_multi if onboarding_config is defined else '' }}"
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg">
+                            Save Defaults
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+
+        <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+            <button type="button" onclick="closeWelcomeModal()"
+                    class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-lg">
+                Close
+            </button>
+            <a id="welcomeGmailLink" href="#" target="_blank" rel="noopener noreferrer"
+               class="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg">
+                Open in Gmail
+            </a>
+        </div>
+    </div>
+</div>
+
+<script id="onboarding-config-data" type="application/json">
+{{ (onboarding_config if onboarding_config is defined else {}) | tojson }}
+</script>
+
+<script>
+let activeWelcomeSub = { firstname: "", userid: "", expirydate: "", connections: 1 };
+
+function getOnboardingCfg() {
+    try {
+        return JSON.parse(document.getElementById("onboarding-config-data").textContent || "{}");
+    } catch (e) {
+        return {};
+    }
+}
+
+function openWelcomeModal(btn) {
+    activeWelcomeSub = {
+        firstname: btn.dataset.firstname || "there",
+        userid: btn.dataset.userid || "",
+        expirydate: btn.dataset.expirydate || "",
+        connections: Math.max(1, parseInt(btn.dataset.connections || "1", 10) || 1)
+    };
+    document.getElementById("welcomeTo").value = btn.dataset.email || "";
+    document.getElementById("welcomeSubject").value = "Welcome! Your Account Details & Setup Guide (" + activeWelcomeSub.userid + ")";
+    rebuildWelcomeBody();
+
+    const modal = document.getElementById("welcomeEmailModal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeWelcomeModal() {
+    const modal = document.getElementById("welcomeEmailModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function rebuildWelcomeBody() {
+    const cfg = getOnboardingCfg();
+    const pw = (document.getElementById("welcomePasswordInput").value || cfg.default_password || "[Your Password]").trim();
+    const portal = (cfg.portal_url || "").trim();
+    const planMode = document.getElementById("welcomePaypalPlan").value;
+    const isMulti = activeWelcomeSub.connections > 1;
+
+    let paypalUrl = "";
+    if (planMode === "auto_monthly") {
+        paypalUrl = isMulti ? cfg.paypal_monthly_multi : cfg.paypal_monthly_1;
+    } else if (planMode === "auto_annual") {
+        paypalUrl = isMulti ? cfg.paypal_annual_multi : cfg.paypal_annual_1;
+    }
+
+    const lines = [
+        "Hi " + activeWelcomeSub.firstname + ",",
+        "",
+        "Welcome! Here are your account credentials and setup instructions:",
+        "",
+        "Username: " + activeWelcomeSub.userid,
+        "Password: " + pw,
+    ];
+    if (portal) {
+        lines.push("Server / Portal URL: " + portal);
+    }
+    lines.push("Connections: " + activeWelcomeSub.connections);
+    if (activeWelcomeSub.expirydate) {
+        lines.push("Current Expiry: " + activeWelcomeSub.expirydate);
+    }
+    if (cfg.setup_instructions) {
+        lines.push("", cfg.setup_instructions);
+    }
+    if (paypalUrl) {
+        lines.push(
+            "",
+            "Optional Auto-Pay Setup (PayPal Pre-Authorized Subscription):",
+            paypalUrl
+        );
+    }
+    lines.push("", "Let me know if you need any help getting set up!");
+
+    document.getElementById("welcomeBody").value = lines.join("\n");
+    updateWelcomeMailto();
+}
+
+function updateWelcomeMailto() {
+    const to = encodeURIComponent(document.getElementById("welcomeTo").value || "");
+    const subj = encodeURIComponent(document.getElementById("welcomeSubject").value || "");
+    const body = encodeURIComponent(document.getElementById("welcomeBody").value || "");
+    const mailtoEl = document.getElementById("welcomeMailtoLink"); if (mailtoEl) { mailtoEl.href = `mailto:${to}?subject=${subj}&body=${body}`; }
+    const gmailEl = document.getElementById("welcomeGmailLink");
+    if (gmailEl) {
+        gmailEl.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subj}&body=${body}`;
+    }
+}
+
+function copyWelcomeBody(btn) {
+    navigator.clipboard.writeText(document.getElementById("welcomeBody").value).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+}
 </script>
 
 </body>
