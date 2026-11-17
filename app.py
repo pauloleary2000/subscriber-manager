@@ -209,6 +209,7 @@ def index():
     conn = get_db_connection()
     xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
     xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
+    xui_credits = get_setting(conn, "xui_cached_credits", "")
 
     cursor = conn.cursor(dictionary=True)
     if search:
@@ -324,6 +325,7 @@ def index():
         all_bcc_emails=all_bcc_emails,
         active_bcc_emails=active_bcc_emails,
         subscribers=filtered_subscribers,
+        all_subscribers=all_subscribers,
         search=search,
         active_filter=active_filter,
         counts=counts,
@@ -336,7 +338,7 @@ def index():
         current_month_label=date.today().strftime("%B %Y"),
         xui_phpsessid=xui_phpsessid,
         xui_enabled=xui_enabled,
-        xui_credits=get_setting(conn, "xui_cached_credits", ""),
+        xui_credits=xui_credits,
     )
 
 @app.route("/xui-session", methods=["POST"])

@@ -407,3 +407,79 @@ class XUIClient:
                 raise XUIClientError("XUI session expired during save. Please paste a fresh PHPSESSID.")
 
         return line_id, new_exp_formatted, pkg_id, pkg_name
+
+    def get_all_lines(self, include_trials=False):
+        """
+        Fetches all XUI lines from table.php with parsed username, status,
+        trial flag, active connections, max connections, and expiration date.
+        """
+        self.verify_session()
+        ajax_headers = {
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/lines",
+        }
+        all_rows = []
+        start = 0
+        page_size = 500
+        while True:
+            params = {
+                "id": "lines",
+                "action": "lines",
+                "start": start,
+                "length": page_size,
+            }
+            r = self.session.get(f"{self.base_url}/table.php", params=params, headers=ajax_headers, timeout=20)
+            r.raise_for_status()
+            payload = r.json()
+            rows = payload.get("data", []) if isinstance(payload, dict) else []
+            if not rows:
+                break
+            all_rows.extend(rows)
+            if len(rows) < page_size:
+                break
+            start += page_size
+
+        def strip_html(val):
+            txt = re.sub(r"<br\s*/?>", " ", str(val or ""), flags=re.IGNORECASE)
+            txt = re.sub(r"<[^>]+>", "", txt)
+            return re.sub(r"\s+", " ", txt).strip()
+
+        parsed = []
+        for row in all_rows:
+            if not isinstance(row, list) or len(row) < 10:
+                continue
+            line_id = strip_html(row[0])
+            username = strip_html(row[1])
+            owner = strip_html(row[3])
+            status_html = str(row[4] or "")
+            trial_html = str(row[5] or "")
+            active_conn_raw = strip_html(row[7]) if len(row) > 7 else "0"
+            max_conn_raw = strip_html(row[8]) if len(row) > 8 else "1"
+            exp_clean = strip_html(row[9])
+
+            is_trial = ("fa-check" in trial_html.lower() and "text-success" in trial_html.lower())
+            if is_trial and not include_trials:
+                continue
+
+            is_disabled = ("disabled" in status_html.lower() or "banned" in status_html.lower())
+            try:
+                active_conn = int(re.sub(r"\D", "", active_conn_raw) or "0")
+            except ValueError:
+                active_conn = 0
+            try:
+                max_conn = int(re.sub(r"\D", "", max_conn_raw) or "1")
+            except ValueError:
+                max_conn = 1
+
+            parsed.append({
+                "line_id": line_id,
+                "username": username,
+                "owner": owner,
+                "is_trial": is_trial,
+                "is_disabled": is_disabled,
+                "active_connections": active_conn,
+                "max_connections": max_conn,
+                "exp_date": exp_clean,
+            })
+
+        return parsed

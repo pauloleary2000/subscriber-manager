@@ -127,3 +127,10 @@ When **XUI Sync** is enabled with a valid `PHPSESSID`, the top action bar displa
 
 * **`GET /xui/credits`**: Queries `XUIClient.get_credits()` asynchronously on dashboard load, updates the button badge, and caches the latest balance in MariaDB `app_settings` (`xui_cached_credits`) for instant rendering on subsequent page loads.
 * **`GET /xui/expiring-week` & `POST /xui/extend-week`**: Also refresh the cached credit balance whenever expiring lines are inspected or extended.
+
+## UserID Allocation Quick Reference
+
+The **UserID Map** modal (`templates/index.html`) displays all local subscriber assignments grouped by XUI `userid` with tabular alignment:
+
+* **Aligned Sub-Rows & Alternating Contrast**: Each UserID group lists every assigned subscriber in a high-contrast alternating-row 3-column grid (`Subscriber` | `Connections` | `Expiry`) with sticky headers and group capacity badges (`Users: N / 3` and `Total Conn: N / 5`).
+* **Interactive Filtering**: Supports live search by UserID, subscriber name, or expiry date, plus toggles to **Hide cancelled** accounts and filter to **Open slots only** (`< 3` users and `< 5` total connections).
