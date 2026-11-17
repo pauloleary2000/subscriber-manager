@@ -1504,7 +1504,8 @@ function applySlotCandidate(uidInput, hintEl, candidates, idx, neededConn) {
                 <p class="text-xs text-slate-500">Grouped by XUI UserID &middot; showing assigned subscribers, connections per user, and slot capacity</p>
             </div>
             <div class="flex items-center gap-2">
-                <input type="text" id="useridRefSearch" oninput="renderUseridRefTable()"
+                <input type="search" id="useridRefSearch" name="userid_ref_filter_query" autocomplete="off"
+                       data-lpignore="true" data-1p-ignore="true" oninput="renderUseridRefTable()"
                        placeholder="Filter UserID or name..."
                        class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
@@ -1540,14 +1541,15 @@ function applySlotCandidate(uidInput, hintEl, candidates, idx, neededConn) {
 
 <script id="userid-ref-data" type="application/json">
 [
-{% for sub in subscribers %}
+{% set ref_list = all_subscribers if all_subscribers is defined else subscribers %}
+{% for sub in ref_list %}
   {
     "id": {{ sub.id | tojson }},
-    "name": {{ ((sub.firstname or '') ~ ' ' ~ (sub.lastname or '')).strip() | tojson }},
-    "userid": {{ (sub.userid or '') | trim | tojson }},
+    "name": {{ (((sub.firstname ~ '') if sub.firstname is not none else '') ~ ' ' ~ ((sub.lastname ~ '') if sub.lastname is not none else '')).strip() | tojson }},
+    "userid": {{ (((sub.userid ~ '') if sub.userid is not none else '')).strip() | tojson }},
     "connections": {{ (sub.connections or 1) | int }},
-    "expirydate": {{ (sub.expirydate or '') | trim | tojson }},
-    "notes": {{ (sub.notes or '') | trim | tojson }}
+    "expirydate": {{ (((sub.expirydate ~ '') if sub.expirydate is not none else '')).strip() | tojson }},
+    "notes": {{ (((sub.notes ~ '') if sub.notes is not none else '')).strip() | tojson }}
   }{{ "," if not loop.last else "" }}
 {% endfor %}
 ]
@@ -1574,6 +1576,8 @@ function naturalUidCompare(a, b) {
 }
 
 function openUseridRefModal() {
+    const searchEl = document.getElementById("useridRefSearch");
+    if (searchEl && searchEl.value === "admin") searchEl.value = "";
     renderUseridRefTable();
     const modal = document.getElementById("useridRefModal");
     modal.classList.remove("hidden");
@@ -1587,7 +1591,12 @@ function closeUseridRefModal() {
 }
 
 function renderUseridRefTable() {
-    const raw = JSON.parse(document.getElementById("userid-ref-data").textContent || "[]");
+    let raw = [];
+    try {
+        raw = JSON.parse(document.getElementById("userid-ref-data").textContent || "[]");
+    } catch (err) {
+        console.error("Failed to parse userid-ref-data:", err);
+    }
     const query = (document.getElementById("useridRefSearch").value || "").trim().toLowerCase();
     const hideCancelled = document.getElementById("useridRefHideCancelled").checked;
 
