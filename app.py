@@ -336,6 +336,7 @@ def index():
         current_month_label=date.today().strftime("%B %Y"),
         xui_phpsessid=xui_phpsessid,
         xui_enabled=xui_enabled,
+        xui_credits=get_setting(conn, "xui_cached_credits", ""),
     )
 
 @app.route("/xui-session", methods=["POST"])
@@ -551,6 +552,28 @@ def delete_subscriber(sub_id):
     return redirect(url_for("index"))
 
 
+@app.route("/xui/credits", methods=["GET"])
+def xui_credits():
+    """Return live available XUI reseller credits and cache in app_settings."""
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    conn = get_db_connection()
+    try:
+        xui_phpsessid = get_setting(conn, "xui_phpsessid", os.getenv("XUI_PHPSESSID", ""))
+        xui_enabled = get_setting(conn, "xui_enabled", os.getenv("XUI_ENABLED", "true")) == "true"
+        if not xui_enabled or not xui_phpsessid:
+            return jsonify({"enabled": False, "credits": None})
+        client = XUIClient(xui_phpsessid)
+        credits = client.get_credits()
+        set_setting(conn, "xui_cached_credits", str(credits))
+        return jsonify({"enabled": True, "credits": credits})
+    except Exception as e:
+        cached = get_setting(conn, "xui_cached_credits", "")
+        return jsonify({"enabled": True, "credits": cached if cached != "" else None, "warning": str(e)})
+    finally:
+        conn.close()
+
+
 @app.route("/xui/expiring-week", methods=["GET"])
 def xui_expiring_week():
     """Return JSON payload of live XUI credits and lines expiring within 7 days."""
@@ -565,6 +588,7 @@ def xui_expiring_week():
 
         client = XUIClient(xui_phpsessid)
         credits = client.get_credits()
+        set_setting(conn, "xui_cached_credits", str(credits))
         lines = client.get_lines_expiring_within(days=7, include_recently_expired_days=3)
 
         # Enrich with local subscriber info if userid matches

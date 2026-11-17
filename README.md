@@ -120,3 +120,10 @@ Access the dashboard at **`http://localhost:5050`**.
 | `POST` | `/bulk-extend` | Extends multiple grouped subscribers by `+1M`, `+3M`, or `+1Y`. |
 | `GET` | `/xui/expiring-week` | JSON endpoint returning live XUI `credits` and non-trial `lines` expiring within 7 days. |
 | `POST` | `/xui/extend-week` | Credit-checked XUI-only extension endpoint for lines selected in the 7-day modal. |
+
+## XUI Sync & Reseller Credits
+
+When **XUI Sync** is enabled with a valid `PHPSESSID`, the top action bar displays the current reseller credit balance directly inside the **XUI Sync: ON** button (e.g., `XUI Sync: ON 42 cr`).
+
+* **`GET /xui/credits`**: Queries `XUIClient.get_credits()` asynchronously on dashboard load, updates the button badge, and caches the latest balance in MariaDB `app_settings` (`xui_cached_credits`) for instant rendering on subsequent page loads.
+* **`GET /xui/expiring-week` & `POST /xui/extend-week`**: Also refresh the cached credit balance whenever expiring lines are inspected or extended.
