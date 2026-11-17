@@ -15,26 +15,39 @@
             <h1 class="text-2xl font-bold text-slate-900">Subscriber Manager</h1>
             <p class="text-sm text-slate-500">Showing {{ subscribers|length }} record(s)</p>
         </div>
-        <div class="flex flex-col sm:flex-row w-full md:w-auto gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full md:w-auto md:mx-auto">
+            <!-- Row 1: XUI & Allocation Tools -->
             <button type="button" onclick="openXuiModal()"
-                    class="{{ 'bg-emerald-700 hover:bg-emerald-800' if xui_enabled and xui_phpsessid else 'bg-slate-600 hover:bg-slate-700' }} text-white font-medium px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 shadow-sm">
+                    class="{{ 'bg-emerald-700 hover:bg-emerald-800' if xui_enabled and xui_phpsessid else 'bg-slate-600 hover:bg-slate-700' }} text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-2 text-sm shadow-sm whitespace-nowrap">
                 <span>XUI Sync: {{ 'ON' if xui_enabled and xui_phpsessid else 'OFF' }}</span>
             </button>
+            <button type="button" onclick="openXuiExpiringModal()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5 text-sm shadow-sm whitespace-nowrap">
+                <span>XUI Expiring (7d)</span>
+            </button>
+            <button type="button" onclick="openUseridRefModal()"
+                    class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5 text-sm shadow-sm whitespace-nowrap">
+                <span>UserID Map</span>
+            </button>
+
+            <!-- Row 2: Subscriber Batch & Email Actions -->
             <button type="button" onclick="openBulkExtendModal()"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 shadow-sm">
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-2 text-sm shadow-sm whitespace-nowrap">
                 <span>Bulk Extend ({{ bulk_extend_candidates|length }})</span>
             </button>
             <button type="button" onclick="openNotifyModal()"
-                    class="bg-amber-600 text-white font-medium px-4 py-2 rounded-lg hover:bg-amber-700 transition flex items-center justify-center gap-2 shadow-sm">
+                    class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-2 text-sm shadow-sm whitespace-nowrap">
                 <span>Notify Expiring This Month</span>
                 <span class="px-2 py-0.5 text-xs bg-amber-800 rounded-full">{{ counts.expiring_month }}</span>
             </button>
-<button type="button" onclick="openXuiExpiringModal()"
-        class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5">
-    <span>XUI Expiring (7d)</span>
-</button>
-<button type="button" onclick="openAnnouncementModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5">Announcement Email</button>
-            <a href="/logout" class="ml-auto self-center bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-3 py-2 rounded-lg transition text-sm">Logout</a>
+            <button type="button" onclick="openAnnouncementModal()"
+                    class="bg-sky-600 hover:bg-sky-700 text-white font-medium px-4 py-2 rounded-lg transition inline-flex items-center justify-center gap-1.5 text-sm shadow-sm whitespace-nowrap">
+                <span>Announcement Email</span>
+            </button>
+        </div>
+
+        <div class="flex justify-end self-start md:self-center">
+            <a href="/logout" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-3.5 py-2 rounded-lg transition text-sm inline-flex items-center whitespace-nowrap">Logout</a>
         </div>
     
 
@@ -94,9 +107,17 @@
                        class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">User ID</label>
-                <input type="text" name="user_id" placeholder="ottiptv_126"
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">User ID</label>
+                    <button type="button" onclick="findNextAvailableSlot('add')"
+                            title="Find next non-trial XUI account with <3 users and room for requested connections"
+                            class="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded transition cursor-pointer">
+                        Find Next Slot
+                    </button>
+                </div>
+                <input type="text" id="addUseridInput" name="user_id" placeholder="ottiptv_126"
                        class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p id="addSlotHint" class="text-[11px] text-slate-500 mt-1 hidden"></p>
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Expiry Date</label>
@@ -105,7 +126,7 @@
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Connections</label>
-                <input type="number" name="connections" value="1" min="1"
+                <input type="number" id="addConnectionsInput" name="connections" value="1" min="1" max="5"
                        class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div class="sm:col-span-2 flex items-end gap-3">
@@ -286,7 +307,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     {% if valid_bcc_emails %}
-                    <a href="#" target="_blank" rel="noopener noreferrer" data-bcc="{{ valid_bcc_emails | urlencode }}" onclick="return openBulkExpiringEmail(this);" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5">Open All in Mail (BCC)</a>
+                    <button type="button" onclick="openBulkExpiringEmail(event)" class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5 cursor-pointer">Open All in Mail (BCC)</button>
                     <button type="button" onclick="copyText('bccEmailsInput', this)"
                             class="bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-slate-700">
                         Copy All Emails
@@ -320,7 +341,14 @@
                             <td class="p-3 text-slate-600">{{ sub.email or 'No email' }}</td>
                             <td class="p-3 text-right">
                                 {% if sub.has_valid_email %}
-                                    <button type=\"button\" onclick=\"openBulkExpiringEmail(event)\" class=\"bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5\">Send Email &rarr;</button>
+                                    <button type="button"
+                                            data-firstname="{{ sub.firstname or '' }}"
+                                            data-email="{{ sub.email or '' }}"
+                                            data-userid="{{ sub.userid or 'N/A' }}"
+                                            data-expirydate="{{ sub.expirydate or 'upcoming' }}"
+                                            data-connections="{{ sub.connections or 1 }}"
+                                            onclick="openSingleExpiringEmail(this)"
+                                            class="bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-1.5 rounded-lg transition text-xs inline-flex items-center gap-1 cursor-pointer">Send Email &rarr;</button>
                                 {% else %}
                                     <span class="text-xs text-slate-400 italic">No valid email</span>
                                 {% endif %}
@@ -365,7 +393,15 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">User ID</label>
-                    <input type="text" id="editUserid" name="userid" maxlength="30" class="w-full border p-2 rounded-lg">
+                    <div class="flex gap-1.5">
+                        <input type="text" id="editUserid" name="userid" maxlength="30" class="w-full border p-2 rounded-lg">
+                        <button type="button" onclick="findNextAvailableSlot('edit')"
+                                title="Find next non-trial XUI account with <3 users and room for requested connections"
+                                class="px-2.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg whitespace-nowrap transition cursor-pointer">
+                            Next Slot
+                        </button>
+                    </div>
+                    <p id="editSlotHint" class="text-[11px] text-slate-500 mt-1 hidden"></p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Email / Contact</label>
@@ -832,9 +868,43 @@
         }
     }
 
+    function openSingleExpiringEmail(btn) {
+        const d = btn.dataset;
+        const first = (d.firstname || "there").trim() || "there";
+        const to = (d.email || "").trim();
+        const userid = (d.userid || "N/A").trim();
+        const expiry = (d.expirydate || "upcoming").trim();
+        const conns = String(d.connections || "1").trim();
+
+        if (!to) {
+            alert("No valid email address for this subscriber.");
+            return;
+        }
+
+        const subject = "Subscription Renewal Reminder (" + userid + ")";
+        const body = [
+            "Hi " + first + ",",
+            "",
+            "Just a friendly reminder that your subscription (" + userid + ", " + conns + " connection" + (conns === "1" ? "" : "s") + ") is set to expire on " + expiry + ".",
+            "",
+            "Please reply to this email if you would like to renew or extend your service.",
+            "",
+            "Thanks!"
+        ].join("\n");
+
+        const gmailUrl = "https://mail.google.com/mail/?authuser=613koditv@gmail.com&view=cm&fs=1"
+            + "&to=" + encodeURIComponent(to)
+            + "&su=" + encodeURIComponent(subject)
+            + "&body=" + encodeURIComponent(body);
+
+        window.open(gmailUrl, "_blank", "noopener,noreferrer");
+    }
+
     function openBulkExpiringEmail(e) {
-        if (e) e.preventDefault();
-        const bcc = getBccList().join(",");
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        const bccInput = document.getElementById("bccEmailsInput");
+        const bccFromInput = bccInput ? bccInput.value.split(",").map(s => s.trim()).filter(Boolean).join(",") : "";
+        const bcc = bccFromInput || (typeof getBccList === "function" ? getBccList().join(",") : "");
         const rawSubject = localStorage.getItem("iptv_email_subject") || DEFAULT_EMAIL_SUBJECT;
         const rawBody = localStorage.getItem("iptv_email_body") || DEFAULT_EMAIL_BODY;
 
@@ -1322,6 +1392,246 @@ function confirmXuiExtend(months) {
     const cost = count * months;
     if (count === 0 || cost > currentXuiCredits) return false;
     return confirm(`Extend ${count} XUI account(s) by +${months} month(s) using ${cost} credit(s) (${currentXuiCredits - cost} remaining)?`);
+}
+</script>
+
+
+<script>
+let cachedSlotState = { key: "", candidates: [], index: 0 };
+
+function findNextAvailableSlot(mode) {
+    const isEdit = (mode === "edit");
+    const uidInput = document.getElementById(isEdit ? "editUserid" : "addUseridInput");
+    const connInput = document.getElementById(isEdit ? "editConnections" : "addConnectionsInput");
+    const hintEl = document.getElementById(isEdit ? "editSlotHint" : "addSlotHint");
+
+    const connections = Math.max(1, parseInt(connInput ? connInput.value : "1", 10) || 1);
+    let excludeId = 0;
+    if (isEdit) {
+        const editForm = document.getElementById("editForm");
+        if (editForm && editForm.action) {
+            const m = editForm.action.match(/\/edit\/(\d+)/);
+            if (m) excludeId = parseInt(m[1], 10);
+        }
+    }
+
+    const reqKey = `${mode}:${connections}:${excludeId}`;
+    // If clicking repeatedly with the same connection count, cycle through matching candidate slots
+    if (cachedSlotState.key === reqKey && cachedSlotState.candidates.length > 1) {
+        cachedSlotState.index = (cachedSlotState.index + 1) % cachedSlotState.candidates.length;
+        applySlotCandidate(uidInput, hintEl, cachedSlotState.candidates, cachedSlotState.index, connections);
+        return;
+    }
+
+    hintEl.className = "text-[11px] text-slate-500 mt-1";
+    hintEl.textContent = "Checking XUI lines & local slots...";
+    hintEl.classList.remove("hidden");
+
+    fetch(`/xui/next-available-slot?connections=${connections}&exclude_id=${excludeId}`)
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok || data.error) {
+                cachedSlotState = { key: "", candidates: [], index: 0 };
+                hintEl.className = "text-[11px] text-rose-600 font-medium mt-1";
+                hintEl.textContent = data.error || "No available slot found.";
+                return;
+            }
+            const candidates = data.candidates || [data.slot];
+            cachedSlotState = { key: reqKey, candidates: candidates, index: 0 };
+            applySlotCandidate(uidInput, hintEl, candidates, 0, connections);
+        })
+        .catch(err => {
+            hintEl.className = "text-[11px] text-rose-600 font-medium mt-1";
+            hintEl.textContent = "Network error checking XUI slots: " + err;
+        });
+}
+
+function applySlotCandidate(uidInput, hintEl, candidates, idx, neededConn) {
+    const slot = candidates[idx];
+    uidInput.value = slot.userid;
+    const afterAccts = slot.used_accounts + 1;
+    const afterConns = slot.used_connections + neededConn;
+    const cycleNote = candidates.length > 1 ? ` · #${idx + 1}/${candidates.length} (click again for next)` : "";
+    hintEl.className = "text-[11px] text-emerald-700 font-medium mt-1";
+    hintEl.textContent = `Selected ${slot.userid} (${afterAccts}/${slot.max_accounts} users, ${afterConns}/${slot.max_connections} conn${cycleNote})`;
+    hintEl.classList.remove("hidden");
+}
+</script>
+
+
+<!-- UserID Quick Reference Modal -->
+<div id="useridRefModal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-200">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">UserID Allocation Quick Reference</h3>
+                <p class="text-xs text-slate-500">Grouped by XUI UserID &middot; showing assigned subscribers, connections per user, and slot capacity</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="useridRefSearch" oninput="renderUseridRefTable()"
+                       placeholder="Filter UserID or name..."
+                       class="border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                    <input type="checkbox" id="useridRefHideCancelled" checked onchange="renderUseridRefTable()" class="rounded border-slate-300">
+                    <span>Hide cancelled</span>
+                </label>
+                <button type="button" onclick="closeUseridRefModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none ml-1">&times;</button>
+            </div>
+        </div>
+
+        <div class="overflow-y-auto px-6 py-3 flex-1">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+                        <th class="py-2 pr-3 w-36">UserID</th>
+                        <th class="py-2 px-2">Assigned Subscribers (Connections)</th>
+                        <th class="py-2 px-2 text-center w-24">Users</th>
+                        <th class="py-2 pl-2 text-right w-28">Total Conn</th>
+                    </tr>
+                </thead>
+                <tbody id="useridRefTbody" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-xl">
+            <span id="useridRefSummary">0 UserIDs</span>
+            <button type="button" onclick="closeUseridRefModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script id="userid-ref-data" type="application/json">
+[
+{% for sub in subscribers %}
+  {
+    "id": {{ sub.id | tojson }},
+    "name": {{ ((sub.firstname or '') ~ ' ' ~ (sub.lastname or '')).strip() | tojson }},
+    "userid": {{ (sub.userid or '') | trim | tojson }},
+    "connections": {{ (sub.connections or 1) | int }},
+    "expirydate": {{ (sub.expirydate or '') | trim | tojson }},
+    "notes": {{ (sub.notes or '') | trim | tojson }}
+  }{{ "," if not loop.last else "" }}
+{% endfor %}
+]
+</script>
+
+<script>
+function naturalUidCompare(a, b) {
+    const pa = a.toLowerCase().split(/(\d+)/);
+    const pb = b.toLowerCase().split(/(\d+)/);
+    const len = Math.max(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+        if (pa[i] === undefined) return -1;
+        if (pb[i] === undefined) return 1;
+        const na = /^\d+$/.test(pa[i]);
+        const nb = /^\d+$/.test(pb[i]);
+        if (na && nb) {
+            const diff = parseInt(pa[i], 10) - parseInt(pb[i], 10);
+            if (diff !== 0) return diff;
+        } else if (pa[i] !== pb[i]) {
+            return pa[i] < pb[i] ? -1 : 1;
+        }
+    }
+    return 0;
+}
+
+function openUseridRefModal() {
+    renderUseridRefTable();
+    const modal = document.getElementById("useridRefModal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeUseridRefModal() {
+    const modal = document.getElementById("useridRefModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function renderUseridRefTable() {
+    const raw = JSON.parse(document.getElementById("userid-ref-data").textContent || "[]");
+    const query = (document.getElementById("useridRefSearch").value || "").trim().toLowerCase();
+    const hideCancelled = document.getElementById("useridRefHideCancelled").checked;
+
+    const groups = new Map();
+    raw.forEach(sub => {
+        const uid = (sub.userid || "").trim();
+        if (!uid) return;
+        const expLow = (sub.expirydate || "").toLowerCase();
+        const notesLow = (sub.notes || "").toLowerCase();
+        const isCancelled = (expLow === "-----" || expLow === "0000-00-00" || notesLow.startsWith("cancelled"));
+        if (hideCancelled && isCancelled) return;
+
+        const key = uid.toLowerCase();
+        if (!groups.has(key)) {
+            groups.set(key, { userid: uid, members: [], totalConn: 0, activeCount: 0 });
+        }
+        const g = groups.get(key);
+        g.members.push({ ...sub, isCancelled });
+        if (!isCancelled) {
+            g.totalConn += Math.max(1, Number(sub.connections) || 1);
+            g.activeCount += 1;
+        }
+    });
+
+    const sortedGroups = Array.from(groups.values()).sort((a, b) => naturalUidCompare(a.userid, b.userid));
+    const tbody = document.getElementById("useridRefTbody");
+    tbody.innerHTML = "";
+
+    let shownGroups = 0;
+    let totalActiveUsers = 0;
+    let totalActiveConns = 0;
+
+    sortedGroups.forEach(g => {
+        const matchesQuery = !query
+            || g.userid.toLowerCase().includes(query)
+            || g.members.some(m => m.name.toLowerCase().includes(query) || m.expirydate.toLowerCase().includes(query));
+        if (!matchesQuery) return;
+
+        shownGroups += 1;
+        totalActiveUsers += g.activeCount;
+        totalActiveConns += g.totalConn;
+
+        const userBadgeClass = g.activeCount > 3
+            ? "bg-rose-100 text-rose-800"
+            : (g.activeCount === 3 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800");
+        const connBadgeClass = g.totalConn > 5
+            ? "bg-rose-100 text-rose-800"
+            : (g.totalConn === 5 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-800");
+
+        const memberPills = g.members.map(m => {
+            const c = Math.max(1, Number(m.connections) || 1);
+            const strike = m.isCancelled ? "line-through opacity-50" : "";
+            const expTag = m.expirydate ? ` <span class="text-slate-400">(${m.expirydate})</span>` : "";
+            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs mr-1.5 mb-1 ${strike}">
+                <span class="font-medium">${m.name || "Unnamed"}</span>
+                <span class="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 font-bold text-[11px]">${c}</span>${expTag}
+            </span>`;
+        }).join("");
+
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 align-top";
+        tr.innerHTML = `
+            <td class="py-2.5 pr-3 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">${g.userid}</td>
+            <td class="py-2.5 px-2 leading-relaxed">${memberPills}</td>
+            <td class="py-2.5 px-2 text-center whitespace-nowrap">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${userBadgeClass}">${g.activeCount} / 3</span>
+            </td>
+            <td class="py-2.5 pl-2 text-right whitespace-nowrap">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${connBadgeClass}">${g.totalConn} / 5</span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    if (shownGroups === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-xs text-slate-400">No matching UserIDs found.</td></tr>`;
+    }
+
+    document.getElementById("useridRefSummary").textContent =
+        `${shownGroups} UserID(s) · ${totalActiveUsers} active subscriber(s) · ${totalActiveConns} total connection(s)`;
 }
 </script>
 
