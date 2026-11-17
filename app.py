@@ -1054,7 +1054,10 @@ def telegram_settings():
             data = request.get_json(silent=True) or request.form
             token = (data.get("bot_token") or "").strip()
             chat_id = (data.get("chat_id") or "").strip()
-            set_setting(conn, "telegram_bot_token", token)
+            if token:
+                set_setting(conn, "telegram_bot_token", token)
+            else:
+                token = get_setting(conn, "telegram_bot_token", os.getenv("TELEGRAM_BOT_TOKEN", ""))
             set_setting(conn, "telegram_chat_id", chat_id)
             return jsonify({"ok": True, "configured": bool(token)})
 

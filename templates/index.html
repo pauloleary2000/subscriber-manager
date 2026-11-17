@@ -1842,6 +1842,12 @@ function toggleTgSettings() {
             .then(r => r.json())
             .then(d => {
                 document.getElementById("tgChatIdInput").value = d.chat_id || "";
+                const tokInput = document.getElementById("tgBotTokenInput");
+                if (tokInput) {
+                    tokInput.placeholder = d.configured
+                        ? ("Saved (" + d.masked_token + ") — leave blank to keep")
+                        : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ";
+                }
                 document.getElementById("tgSettingsStatus").textContent = d.configured
                     ? ("Saved: " + d.masked_token)
                     : "Not configured";
