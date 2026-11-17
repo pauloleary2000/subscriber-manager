@@ -1760,22 +1760,29 @@ document.addEventListener("DOMContentLoaded", refreshSystemStatus);
     <div id="tgDrawerBody" class="hidden flex-col max-h-[340px]">
         <!-- Inline Settings Drawer -->
         <div id="tgSettingsBox" class="hidden bg-slate-50 border-b border-slate-200 p-3 space-y-2 text-xs">
-            <div class="font-semibold text-slate-700">Telegram Bot Configuration</div>
-            <div>
-                <label class="block text-[11px] text-slate-500 mb-0.5">Bot Token (from @BotFather)</label>
-                <input type="password" id="tgBotTokenInput" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <div class="font-semibold text-slate-700">Telegram Account Monitor</div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-[11px] text-slate-500 mb-0.5">API ID</label>
+                    <input type="text" id="tgApiIdInput" placeholder="35559518"
+                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] text-slate-500 mb-0.5">API Hash</label>
+                    <input type="password" id="tgApiHashInput" placeholder="Saved — leave blank to keep"
+                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
             </div>
             <div>
-                <label class="block text-[11px] text-slate-500 mb-0.5">Filter by Chat ID (optional — leave blank for all chats)</label>
-                <input type="text" id="tgChatIdInput" placeholder="e.g. -1001234567890"
+                <label class="block text-[11px] text-slate-500 mb-0.5">Target Chat ID</label>
+                <input type="text" id="tgChatIdInput" placeholder="-1001998504661"
                        class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
             </div>
             <div class="flex items-center justify-between pt-1">
                 <span id="tgSettingsStatus" class="text-[11px] text-slate-500"></span>
                 <button type="button" onclick="saveTelegramSettings()"
                         class="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md text-xs cursor-pointer">
-                    Save Token
+                    Save Settings
                 </button>
             </div>
         </div>
@@ -1841,22 +1848,24 @@ function toggleTgSettings() {
         fetch("/telegram/settings")
             .then(r => r.json())
             .then(d => {
-                document.getElementById("tgChatIdInput").value = d.chat_id || "";
-                const tokInput = document.getElementById("tgBotTokenInput");
-                if (tokInput) {
-                    tokInput.placeholder = d.configured
-                        ? ("Saved (" + d.masked_token + ") — leave blank to keep")
-                        : "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ";
+                document.getElementById("tgApiIdInput").value = d.api_id || "35559518";
+                document.getElementById("tgChatIdInput").value = d.chat_id || "-1001998504661";
+                const hashInput = document.getElementById("tgApiHashInput");
+                if (hashInput) {
+                    hashInput.placeholder = d.masked_hash
+                        ? ("Saved (" + d.masked_hash + ") — leave blank to keep")
+                        : "API Hash";
                 }
-                document.getElementById("tgSettingsStatus").textContent = d.configured
-                    ? ("Saved: " + d.masked_token)
-                    : "Not configured";
+                document.getElementById("tgSettingsStatus").textContent = d.session_ready
+                    ? "Session active"
+                    : "Terminal login needed";
             });
     }
 }
 
 function saveTelegramSettings() {
-    const token = document.getElementById("tgBotTokenInput").value.trim();
+    const apiId = document.getElementById("tgApiIdInput").value.trim();
+    const apiHash = document.getElementById("tgApiHashInput").value.trim();
     const chatId = document.getElementById("tgChatIdInput").value.trim();
     const statusEl = document.getElementById("tgSettingsStatus");
     statusEl.textContent = "Saving...";
@@ -1864,13 +1873,13 @@ function saveTelegramSettings() {
     fetch("/telegram/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bot_token: token, chat_id: chatId })
+        body: JSON.stringify({ api_id: apiId, api_hash: apiHash, chat_id: chatId })
     })
     .then(r => r.json())
     .then(d => {
         if (d.ok) {
             statusEl.textContent = "Saved!";
-            document.getElementById("tgBotTokenInput").value = "";
+            document.getElementById("tgApiHashInput").value = "";
             setTimeout(() => {
                 document.getElementById("tgSettingsBox").classList.add("hidden");
                 fetchTelegramMessages(true);
@@ -1922,9 +1931,9 @@ function fetchTelegramMessages(manual) {
             if (!data.configured) {
                 dotEl.className = "w-2 h-2 rounded-full bg-amber-300";
                 listEl.innerHTML = `<div class="p-4 text-center text-xs text-slate-600 space-y-2">
-                    <p>Connect your Telegram bot to view recent chat messages here.</p>
+                    <p>Authorize your Telegram session once in Terminal to stream Hive Support messages.</p>
                     <button type="button" onclick="toggleTgSettings()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md text-xs cursor-pointer">
-                        Enter Bot Token
+                        Check Settings
                     </button>
                 </div>`;
                 if (footer) footer.textContent = "Setup required";
