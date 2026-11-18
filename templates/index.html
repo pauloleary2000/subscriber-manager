@@ -53,6 +53,11 @@
         </div>
 
         <div class="flex items-center justify-end gap-2 self-start md:self-center">
+            <button type="button" onclick="openActivityLogModal()"
+                    title="View recent dashboard activity and audit log"
+                    class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-3.5 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer">
+                <span>Activity Log</span>
+            </button>
             <button type="button" onclick="downloadDbBackup()"
                     title="Download a .sql backup of your subscribers database"
                     class="bg-slate-800 hover:bg-slate-900 text-white font-medium px-3.5 py-2 rounded-lg transition text-sm inline-flex items-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer">
@@ -2215,7 +2220,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-lg">
                 Close
             </button>
-            <a id="welcomeGmailLink" href="#" target="_blank" rel="noopener noreferrer"
+            <a id="welcomeGmailLink" onclick="logClientEvent('Email', 'Opened Welcome Email (Gmail)', activeWelcomeSub.userid + ' -> ' + document.getElementById('welcomeTo').value)" href="#" target="_blank" rel="noopener noreferrer"
                class="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg">
                 Open in Gmail
             </a>
@@ -2322,6 +2327,168 @@ function copyWelcomeBody(btn) {
         btn.textContent = "Copied!";
         setTimeout(() => { btn.textContent = orig; }, 1500);
     });
+}
+</script>
+
+
+<!-- Activity / Event Log Modal -->
+<div id="activityLogModal" class="fixed inset-0 bg-slate-900/55 backdrop-blur-[1px] hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-200">
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Activity &amp; Event Log</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Recent subscriber changes, emails opened, logins, and system events (last 250)</p>
+            </div>
+            <button type="button" onclick="closeActivityLogModal()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <div class="px-6 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-1.5" id="activityFilterPills">
+                <button type="button" onclick="setActivityCategory('ALL')" data-cat="ALL"
+                        class="act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-white">All</button>
+                <button type="button" onclick="setActivityCategory('Subscriber')" data-cat="Subscriber"
+                        class="act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Subscriber</button>
+                <button type="button" onclick="setActivityCategory('Email')" data-cat="Email"
+                        class="act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">Email</button>
+                <button type="button" onclick="setActivityCategory('System / Auth')" data-cat="System / Auth"
+                        class="act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">System / Auth</button>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" id="activitySearchInput" oninput="renderActivityLogs()"
+                       placeholder="Filter events..."
+                       class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 w-44">
+                <button type="button" onclick="loadActivityLogs()"
+                        class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
+                    Refresh
+                </button>
+                <button type="button" onclick="clearActivityLogs()"
+                        class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg">
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-y-auto flex-1">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-slate-50 text-slate-500 uppercase text-[11px] sticky top-0 border-b border-slate-200">
+                    <tr>
+                        <th class="py-2.5 px-4">Timestamp</th>
+                        <th class="py-2.5 px-3">Category</th>
+                        <th class="py-2.5 px-3">Action</th>
+                        <th class="py-2.5 px-4">Details</th>
+                        <th class="py-2.5 px-3">User / IP</th>
+                    </tr>
+                </thead>
+                <tbody id="activityLogTbody" class="divide-y divide-slate-100 text-slate-700">
+                    <tr><td colspan="5" class="py-8 text-center text-slate-400">Loading events...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+            <button type="button" onclick="closeActivityLogModal()"
+                    class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-lg">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let cachedActivityEvents = [];
+let selectedActivityCategory = "ALL";
+
+function logClientEvent(category, action, details) {
+    const payload = JSON.stringify({ category, action, details });
+    if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: "application/json" });
+        if (navigator.sendBeacon("/events/log", blob)) return;
+    }
+    fetch("/events/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: payload
+    }).catch(() => {});
+}
+
+function openActivityLogModal() {
+    const modal = document.getElementById("activityLogModal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    loadActivityLogs();
+}
+
+function closeActivityLogModal() {
+    const modal = document.getElementById("activityLogModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function setActivityCategory(cat) {
+    selectedActivityCategory = cat;
+    document.querySelectorAll(".act-pill").forEach(btn => {
+        if (btn.dataset.cat === cat) {
+            btn.className = "act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-white";
+        } else {
+            btn.className = "act-pill px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200";
+        }
+    });
+    renderActivityLogs();
+}
+
+function loadActivityLogs() {
+    const tbody = document.getElementById("activityLogTbody");
+    tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-slate-400">Loading events...</td></tr>';
+    fetch("/events")
+        .then(r => r.json())
+        .then(data => {
+            cachedActivityEvents = data.events || [];
+            renderActivityLogs();
+        })
+        .catch(() => {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-rose-500">Failed to load activity log.</td></tr>';
+        });
+}
+
+function renderActivityLogs() {
+    const tbody = document.getElementById("activityLogTbody");
+    const q = (document.getElementById("activitySearchInput").value || "").toLowerCase().trim();
+    const filtered = cachedActivityEvents.filter(ev => {
+        if (selectedActivityCategory !== "ALL" && ev.category !== selectedActivityCategory) return false;
+        if (!q) return true;
+        return [ev.created_at, ev.category, ev.action, ev.details, ev.actor, ev.ip_addr]
+            .some(v => String(v || "").toLowerCase().includes(q));
+    });
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-slate-400">No matching events recorded yet.</td></tr>';
+        return;
+    }
+
+    const badgeColors = {
+        "Subscriber": "bg-blue-50 text-blue-700 border-blue-200",
+        "Email": "bg-emerald-50 text-emerald-700 border-emerald-200",
+        "System / Auth": "bg-amber-50 text-amber-800 border-amber-200"
+    };
+
+    tbody.innerHTML = filtered.map(ev => {
+        const cls = badgeColors[ev.category] || "bg-slate-100 text-slate-700 border-slate-200";
+        const esc = s => String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+        return `<tr class="hover:bg-slate-50">
+            <td class="py-2 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">${esc(ev.created_at)}</td>
+            <td class="py-2 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded border text-[11px] font-semibold ${cls}">${esc(ev.category)}</span></td>
+            <td class="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">${esc(ev.action)}</td>
+            <td class="py-2 px-4 text-slate-600">${esc(ev.details)}</td>
+            <td class="py-2 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">${esc(ev.actor)}${ev.ip_addr ? " (" + esc(ev.ip_addr) + ")" : ""}</td>
+        </tr>`;
+    }).join("");
+}
+
+function clearActivityLogs() {
+    if (!confirm("Clear all recorded activity log entries?")) return;
+    fetch("/events/clear", { method: "POST" })
+        .then(() => loadActivityLogs());
 }
 </script>
 

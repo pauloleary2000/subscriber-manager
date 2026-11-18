@@ -139,3 +139,23 @@ The **UserID Map** modal (`templates/index.html`) displays all local subscriber 
 
 * **One-Click Copy Credentials / Welcome Pack**: Add a quick-copy action on subscriber rows and inside the **UserID Allocation Quick Reference** modal to copy a formatted welcome/login bundle (XUI username, password, portal/DNS URL, connection limit, and expiry date) directly to the clipboard.
 * **Unified Renewal Workflow (Local + XUI + Email)**: Combine local MariaDB expiry extension, live XUI line extension (with credit cost vs. available balance preview), and renewal confirmation email composition into a single modal workflow (`+1M`, `+3M`, `+12M`).
+
+## Recent Dashboard Features
+
+### 1. Subscriber Onboarding & Welcome Email Workflow
+* **Row Action (`Welcome`)**: Every subscriber row includes a **Welcome** button inside a compact **2×2 action grid** (`Welcome` + `Email` on top, `Edit` + `Delete` underneath) to preserve horizontal visibility for the **Notes** column.
+* **Auto-Populated Credentials & Setup Guide**: Automatically fills in the subscriber's first name, `userid`, default password (`Canada123`, configurable in the UI), connection count, current expiry date, and device setup instructions (including Downloader codes for **TiviMate**, **Sparkle**, and **Hive Smarters**).
+* **PayPal Pre-Authorized Subscription Selection**: Automatically picks the matching Monthly or Annual PayPal subscription plan link based on single (`1`) vs. multi-connection (`2+`) accounts, with an option to omit the link.
+* **Persistent Settings (`app_settings`)**: Expand **Configure Default Credentials, Portal URL & PayPal Plans** inside the Welcome modal to save your portal URL, default password, setup instructions, and PayPal links directly into the MariaDB `app_settings` table via `POST /onboarding-settings`.
+
+### 2. Gmail-Only Email Delivery
+* All email workflows—**Welcome Onboarding**, **Single Renewal/Expiry Email**, **Notify Expiring This Month**, and **Announcement Email**—route exclusively through **Gmail** (`https://mail.google.com/mail/?view=cm&fs=1...`) rather than local `mailto:` handlers.
+
+### 3. Activity & Event Audit Log (`event_logs`)
+* **MariaDB Persistence**: Automatically creates and maintains an `event_logs` table (retaining the latest 1,000 events and displaying the 250 most recent in the **Activity Log** header modal).
+* **Tracked Categories**:
+  * **Subscriber**: Adding (`/add`), updating (`/update/<id>`), and deleting (`/delete/<id>`) subscriber records.
+  * **Renewal / XUI**: Single extensions (`/extend/<id>`), bulk extensions (`/bulk-extend`), XUI 7-day auto-extensions (`/xui/extend-week`), and XUI `PHPSESSID` session updates (`/xui-session`).
+  * **Email**: Opening Welcome, Single Renewal/Expiry, Expiring-This-Month, or Announcement emails in Gmail (`POST /events/log` via `navigator.sendBeacon`).
+  * **System / Auth**: User logins (`/login`), logouts (`/logout`), onboarding template updates (`/onboarding-settings`), and log clears (`/events/clear`).
+* **Filtering & Search**: Filter entries in the **Activity Log** modal by category pill (`All`, `Subscriber`, `Renewal / XUI`, `Email`, `System / Auth`) or search across timestamps, usernames, IP addresses, and event details.

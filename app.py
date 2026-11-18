@@ -95,6 +95,7 @@ def login():
             session.clear()
             session["authenticated"] = True
             session["user"] = ADMIN_USER
+            log_event("System / Auth", "Login", "User '" + str(session.get("user", "")) + "' signed in", actor=session.get("user", ""))
             session.permanent = request.form.get("remember_me") == "on"
             return redirect(next_url)
         flash("Invalid username or password.", "error")
@@ -193,6 +194,54 @@ def load_onboarding_config_safe():
     finally:
         if conn:
             conn.close()
+
+
+def ensure_event_logs_table(conn):
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS event_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            category VARCHAR(32) NOT NULL,
+            action VARCHAR(64) NOT NULL,
+            actor VARCHAR(64) DEFAULT '',
+            ip_addr VARCHAR(64) DEFAULT '',
+            details TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
+
+def log_event(category, action, details="", conn=None, actor=None):
+    own_conn = False
+    try:
+        if conn is None:
+            conn = get_db_connection()
+            own_conn = True
+        ensure_event_logs_table(conn)
+        who = actor if actor is not None else session.get("user", "system")
+        ip_addr = ""
+        try:
+            ip_addr = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr or "")[:64]
+        except RuntimeError:
+            pass
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO event_logs (category, action, actor, ip_addr, details) VALUES (%s, %s, %s, %s, %s)",
+            (category[:32], action[:64], str(who)[:64], ip_addr, str(details or ""))
+        )
+        # Retain latest 1000 events
+        cursor.execute("DELETE FROM event_logs WHERE id <= (SELECT COALESCE(MAX(id), 0) - 1000 FROM (SELECT id FROM event_logs) AS t)")
+        conn.commit()
+        cursor.close()
+    except Exception:
+        pass
+    finally:
+        if own_conn and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def get_end_of_month(today):
     last_day = calendar.monthrange(today.year, today.month)[1]
@@ -413,6 +462,7 @@ def update_xui_session():
     else:
         flash("XUI sync disabled (local DB mode only).", "success")
 
+    log_event("Renewal / XUI", "Updated XUI Session", "Updated XUI PHPSESSID / sync configuration")
     return redirect(url_for("index"))
 
 @app.route("/extend/<int:sub_id>", methods=["POST"])
@@ -552,6 +602,7 @@ def save_onboarding_settings():
         set_setting(conn, "paypal_annual_multi", request.form.get("paypal_annual_multi", "").strip())
     finally:
         conn.close()
+    log_event("System / Auth", "Updated Onboarding Settings", "Saved welcome email portal URL, password, or PayPal defaults")
     flash("Saved onboarding welcome email defaults.", "success")
     return redirect(url_for("index"))
 
@@ -576,6 +627,7 @@ def add_subscriber():
     cursor.close()
     conn.close()
     
+    log_event("Subscriber", "Added Subscriber", f"{firstname} {lastname} (userid: {userid or 'none'}, conns: {connections}, exp: {expirydate or 'na'})", conn=conn)
     flash(f"Added subscriber {firstname} {lastname}.", "success")
     return redirect(url_for("index"))
 
@@ -601,6 +653,7 @@ def update_subscriber(sub_id):
     cursor.close()
     conn.close()
     
+    log_event("Subscriber", "Updated Subscriber", f"#{sub_id} {firstname} {lastname} (userid: {userid or 'none'}, conns: {connections}, exp: {expirydate or 'na'})", conn=conn)
     flash(f"Updated subscriber #{sub_id} ({firstname} {lastname}).", "success")
     return redirect(url_for("index"))
 
@@ -608,7 +661,11 @@ def update_subscriber(sub_id):
 def delete_subscriber(sub_id):
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute(f"SELECT firstname, lastname, userid FROM {TABLE} WHERE id=%s", (sub_id,))
+    _del_row = cursor.fetchone()
+    _del_label = f"#{sub_id} {_del_row[0]} {_del_row[1]} (userid: {_del_row[2] or 'none'})" if _del_row else f"#{sub_id}"
     cursor.execute(f"DELETE FROM {TABLE} WHERE id=%s", (sub_id,))
+    log_event("Subscriber", "Deleted Subscriber", _del_label, conn=conn)
     conn.commit()
     cursor.close()
     conn.close()
@@ -972,6 +1029,57 @@ def backup_database():
         cursor.close()
         conn.close()
 
+
+
+@app.route("/events", methods=["GET"])
+def get_events():
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    conn = get_db_connection()
+    try:
+        ensure_event_logs_table(conn)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                   category, action, actor, ip_addr, details
+            FROM event_logs
+            ORDER BY id DESC
+            LIMIT 250
+        """)
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify({"events": rows})
+    finally:
+        conn.close()
+
+
+@app.route("/events/log", methods=["POST"])
+def client_log_event():
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    payload = request.get_json(silent=True) or {}
+    category = str(payload.get("category") or "Email")[:32]
+    action = str(payload.get("action") or "Client Action")[:64]
+    details = str(payload.get("details") or "")[:500]
+    log_event(category, action, details)
+    return jsonify({"ok": True})
+
+
+@app.route("/events/clear", methods=["POST"])
+def clear_events():
+    if "user" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    conn = get_db_connection()
+    try:
+        ensure_event_logs_table(conn)
+        cursor = conn.cursor()
+        cursor.execute("TRUNCATE TABLE event_logs")
+        conn.commit()
+        cursor.close()
+        log_event("System / Auth", "Cleared Activity Log", "Event log history cleared by user", conn=conn)
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
 
 
 @app.route("/system-status", methods=["GET"])
