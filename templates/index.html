@@ -108,13 +108,13 @@
 
     <!-- Full-Width Search Bar Row -->
     <div class="w-full mb-6">
-        <form method="GET" action="/" class="w-full flex items-center gap-2">
+        <form method="GET" action="/" class="w-full flex items-center gap-2" autocomplete="off">
             {% if current_filter and current_filter != 'all' %}
             <input type="hidden" name="filter" value="{{ current_filter }}">
             {% endif %}
             <input type="text" name="search" value="{{ search or '' }}"
                    placeholder="Search name, email, userid, notes..."
-                   class="flex-1 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                   class="flex-1 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             <button type="submit"
                     class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm transition cursor-pointer">
                 Search
@@ -131,21 +131,21 @@
     <!-- Add New Subscriber Card -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 class="text-base font-semibold text-slate-900 mb-4">Add New Subscriber</h2>
-        <form method="POST" action="/add" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <form method="POST" action="/add" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" autocomplete="off">
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">First Name *</label>
                 <input type="text" name="first_name" required placeholder="Jane"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Last Name *</label>
                 <input type="text" name="last_name" required placeholder="Doe"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email / Contact</label>
                 <input type="text" name="email" placeholder="jane@example.com"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <div class="flex items-center justify-between mb-1">
@@ -157,24 +157,24 @@
                     </button>
                 </div>
                 <input type="text" id="addUseridInput" name="user_id" placeholder="ottiptv_126"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 <p id="addSlotHint" class="text-[11px] text-slate-500 mt-1 hidden"></p>
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Expiry Date</label>
                 <input type="text" name="expiry_date" placeholder="e.g. nov 1 2026 or na"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Connections</label>
                 <input type="number" id="addConnectionsInput" name="connections" value="1" min="1" max="5"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div class="sm:col-span-2 flex items-end gap-3">
                 <div class="flex-1">
                     <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Notes</label>
                     <input type="text" name="notes" placeholder="Optional notes..."
-                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
                 <button type="submit"
                         class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2 rounded-lg shadow-sm transition cursor-pointer whitespace-nowrap">
@@ -271,7 +271,7 @@
                     <td class="p-4 whitespace-nowrap">
                         <div class="inline-flex rounded-md shadow-xs" role="group">
                             {% for m, label in [(1, '+1M'), (3, '+3M'), (12, '+1Y')] %}
-                            <form method="POST" action="/extend/{{ sub.id }}" class="inline">
+                            <form method="POST" action="/extend/{{ sub.id }}" class="inline" autocomplete="off">
                                 <input type="hidden" name="months" value="{{ m }}">
                                 <input type="hidden" name="filter" value="{{ active_filter }}">
                                 <input type="hidden" name="search" value="{{ search }}">
@@ -332,7 +332,7 @@
                                 Edit
                             </button>
                             <form method="POST" action="/delete/{{ sub.id }}" class="w-full m-0"
-                                  onsubmit="return confirm('Delete subscriber {{ sub.firstname }} {{ sub.lastname }}?');">
+                                  onsubmit="return confirm('Delete subscriber {{ sub.firstname }} {{ sub.lastname }}?');" autocomplete="off">
                                 <button type="submit"
                                         class="w-full px-1.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded text-center transition cursor-pointer">
                                     Delete
@@ -428,7 +428,7 @@
 
         <div>
             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Renewal Message Template</label>
-            <textarea id="reminderBodyInput" rows="11" class="w-full border border-slate-300 rounded-lg p-3 text-sm font-sans text-slate-700 bg-slate-50">{{ reminder_body }}</textarea>
+            <textarea id="reminderBodyInput" rows="11" class="w-full border border-slate-300 rounded-lg p-3 text-sm font-sans text-slate-700 bg-slate-50" autocomplete="off" data-lpignore="true" data-1p-ignore>{{ reminder_body }}</textarea>
         </div>
 
         <div class="flex justify-end pt-4">
@@ -441,22 +441,22 @@
 <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl">
         <h3 class="text-lg font-bold mb-4">Edit Subscriber <span id="editIdBadge" class="text-slate-400 font-mono text-sm"></span></h3>
-        <form id="editForm" method="POST" class="space-y-4">
+        <form id="editForm" method="POST" class="space-y-4" autocomplete="off">
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">First Name</label>
-                    <input type="text" id="editFirstname" name="firstname" maxlength="30" required class="w-full border p-2 rounded-lg">
+                    <input type="text" id="editFirstname" name="firstname" maxlength="30" required class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Last Name</label>
-                    <input type="text" id="editLastname" name="lastname" maxlength="30" required class="w-full border p-2 rounded-lg">
+                    <input type="text" id="editLastname" name="lastname" maxlength="30" required class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">User ID</label>
                     <div class="flex gap-1.5">
-                        <input type="text" id="editUserid" name="userid" maxlength="30" class="w-full border p-2 rounded-lg">
+                        <input type="text" id="editUserid" name="userid" maxlength="30" class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         <button type="button" onclick="findNextAvailableSlot('edit')"
                                 title="Find next non-trial XUI account with <3 users and room for requested connections"
                                 class="px-2.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg whitespace-nowrap transition cursor-pointer">
@@ -467,22 +467,22 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Email / Contact</label>
-                    <input type="text" id="editEmail" name="email" maxlength="30" class="w-full border p-2 rounded-lg">
+                    <input type="text" id="editEmail" name="email" maxlength="30" class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Expiry Date</label>
-                    <input type="text" id="editExpirydate" name="expirydate" maxlength="30" class="w-full border p-2 rounded-lg">
+                    <input type="text" id="editExpirydate" name="expirydate" maxlength="30" class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Connections</label>
-                    <input type="number" id="editConnections" name="connections" min="1" required class="w-full border p-2 rounded-lg">
+                    <input type="number" id="editConnections" name="connections" min="1" required class="w-full border p-2 rounded-lg" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">Notes</label>
-                <textarea id="editNotes" name="notes" rows="3" maxlength="100" class="w-full border p-2 rounded-lg"></textarea>
+                <textarea id="editNotes" name="notes" rows="3" maxlength="100" class="w-full border p-2 rounded-lg" autocomplete="off" data-lpignore="true" data-1p-ignore></textarea>
             </div>
             <div class="flex justify-end gap-2 pt-4">
                 <button type="button" onclick="closeEditModal()" class="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">Cancel</button>
@@ -595,7 +595,7 @@
         <p class="text-sm text-slate-600 mb-4">
             Log into <a href="https://iptvottawa.ca/SCHSEGZi/login" target="_blank" class="text-blue-600 underline">iptvottawa.ca/SCHSEGZi</a> in Chrome, open DevTools (<code>Cmd+Option+I</code>) &rarr; <strong>Application &rarr; Cookies</strong>, and paste your <code>PHPSESSID</code> value below.
         </p>
-        <form method="POST" action="/xui-session" class="space-y-4">
+        <form method="POST" action="/xui-session" class="space-y-4" autocomplete="off">
             <div class="flex items-center gap-2">
                 <input type="checkbox" id="xuiEnabledCheck" name="xui_enabled" {{ 'checked' if xui_enabled else '' }} class="w-4 h-4 rounded">
                 <label for="xuiEnabledCheck" class="text-sm font-medium text-slate-800">Automatically extend line in XUI when clicking +1M / +3M / +1Y</label>
@@ -606,7 +606,7 @@
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">PHPSESSID Cookie Value</label>
-                <input type="text" name="phpsessid" value="{{ xui_phpsessid }}" placeholder="e.g. nik62so24s1nd1620r194gv5jr" class="w-full border p-2 rounded-lg font-mono text-sm">
+                <input type="text" name="phpsessid" value="{{ xui_phpsessid }}" placeholder="e.g. nik62so24s1nd1620r194gv5jr" class="w-full border p-2 rounded-lg font-mono text-sm" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <strong>Package Mapping:</strong> +1M &rarr; Pkg <code>15</code> (1 credit) | +3M &rarr; Pkg <code>21</code> (3 credits) | +1Y &rarr; Pkg <code>19</code> (12 credits)
@@ -635,7 +635,7 @@
         </div>
 
         {% if bulk_extend_candidates %}
-        <form method="POST" action="/bulk-extend" class="flex flex-col flex-1 overflow-hidden space-y-4">
+        <form method="POST" action="/bulk-extend" class="flex flex-col flex-1 overflow-hidden space-y-4" autocomplete="off">
             <input type="hidden" name="filter" value="{{ active_filter }}">
             <input type="hidden" name="search" value="{{ search }}">
 
@@ -822,13 +822,13 @@
                     <span class="text-xs text-slate-500">Recipients (BCC): <strong id="emailBccCount">0</strong></span>
                 </div>
                 <input type="text" id="bulkEmailSubject"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
 
             <div>
                 <label for="bulkEmailBody" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Email Body</label>
                 <textarea id="bulkEmailBody" rows="8"
-                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-amber-500" autocomplete="off" data-lpignore="true" data-1p-ignore></textarea>
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
@@ -1024,13 +1024,13 @@
             <div>
                 <label for="announceEmailSubject" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Subject Line</label>
                 <input type="text" id="announceEmailSubject"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
 
             <div>
                 <label for="announceEmailBody" class="block text-xs font-semibold text-slate-600 uppercase mb-1">Announcement Message</label>
                 <textarea id="announceEmailBody" rows="8"
-                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off" data-lpignore="true" data-1p-ignore></textarea>
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
@@ -1169,17 +1169,17 @@
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">To</label>
                 <input type="text" id="singleEmailTo" readonly
-                       class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700">
+                       class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
                 <input type="text" id="singleEmailSubject"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Message</label>
                 <textarea id="singleEmailBody" rows="7"
-                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                          class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off" data-lpignore="true" data-1p-ignore></textarea>
             </div>
         </div>
         <div class="flex items-center justify-between gap-2 mt-5 pt-4 border-t border-slate-200">
@@ -1281,7 +1281,7 @@ document.getElementById("singleEmailBody").addEventListener("input", updateSingl
             Loading live XUI panel data...
         </div>
 
-        <form id="xuiExpiringForm" method="POST" action="/xui/extend-week" class="hidden flex-1 flex flex-col overflow-hidden">
+        <form id="xuiExpiringForm" method="POST" action="/xui/extend-week" class="hidden flex-1 flex flex-col overflow-hidden" autocomplete="off">
             <div class="overflow-y-auto px-6 py-3 flex-1">
                 <table class="w-full text-left border-collapse text-sm">
                     <thead>
@@ -1535,7 +1535,7 @@ function applySlotCandidate(uidInput, hintEl, candidates, idx, neededConn) {
                     <input type="search" id="useridRefSearch" name="userid_ref_filter_query" autocomplete="off"
                            data-lpignore="true" data-1p-ignore="true" oninput="renderUseridRefTable()"
                            placeholder="Filter UserID, name, or date..."
-                           class="w-56 border border-slate-300 rounded-lg pl-3 pr-7 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                           class="w-56 border border-slate-300 rounded-lg pl-3 pr-7 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
                     <button type="button" onclick="document.getElementById('useridRefSearch').value=''; renderUseridRefTable();"
                             title="Clear filter"
                             class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm leading-none">&times;</button>
@@ -1857,18 +1857,18 @@ document.addEventListener("DOMContentLoaded", refreshSystemStatus);
                 <div>
                     <label class="block text-[11px] text-slate-500 mb-0.5">API ID</label>
                     <input type="text" id="tgApiIdInput" placeholder="35559518"
-                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
                 <div>
                     <label class="block text-[11px] text-slate-500 mb-0.5">API Hash</label>
                     <input type="password" id="tgApiHashInput" placeholder="Saved — leave blank to keep"
-                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                           class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
             </div>
             <div>
                 <label class="block text-[11px] text-slate-500 mb-0.5">Target Chat ID</label>
                 <input type="text" id="tgChatIdInput" placeholder="-1001998504661"
-                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                       class="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-xs text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
             <div class="flex items-center justify-between pt-1">
                 <span id="tgSettingsStatus" class="text-[11px] text-slate-500"></span>
@@ -2116,7 +2116,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">To Email</label>
-                    <input type="text" id="welcomeTo" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+                    <input type="text" id="welcomeTo" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">PayPal Pre-Auth Link</label>
@@ -2131,14 +2131,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     <input type="text" id="welcomePasswordInput" oninput="rebuildWelcomeBody()"
                            value="{{ onboarding_config.default_password if onboarding_config is defined else '' }}"
                            placeholder="Default password"
-                           class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+                           class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 </div>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
                 <input type="text" id="welcomeSubject" oninput="updateWelcomeMailto()"
-                       class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800">
+                       class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
             </div>
 
             <div>
@@ -2150,7 +2150,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     </button>
                 </div>
                 <textarea id="welcomeBody" rows="12" oninput="updateWelcomeMailto()"
-                          class="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 leading-relaxed"></textarea>
+                          class="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 leading-relaxed" autocomplete="off" data-lpignore="true" data-1p-ignore></textarea>
             </div>
 
             <!-- Collapsible Default Template Settings -->
@@ -2158,52 +2158,52 @@ document.addEventListener("DOMContentLoaded", function () {
                 <summary class="text-xs font-semibold text-slate-700 cursor-pointer select-none">
                     Configure Default Credentials, Portal URL &amp; PayPal Plans (Saved in DB)
                 </summary>
-                <form method="POST" action="/onboarding-settings" class="mt-3 space-y-3">
+                <form method="POST" action="/onboarding-settings" class="mt-3 space-y-3" autocomplete="off">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Portal / Server URL</label>
                             <input type="text" name="onboarding_portal_url"
                                    value="{{ onboarding_config.portal_url if onboarding_config is defined else '' }}"
                                    placeholder="http://your-portal-url:8080"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Default Password</label>
                             <input type="text" name="onboarding_default_password"
                                    value="{{ onboarding_config.default_password if onboarding_config is defined else '' }}"
                                    placeholder="Default account password"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">App Setup Instructions</label>
                         <textarea name="onboarding_setup_instructions" rows="5"
-                                  class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono bg-white">{{ onboarding_config.setup_instructions if onboarding_config is defined else '' }}</textarea>
+                                  class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono bg-white" autocomplete="off" data-lpignore="true" data-1p-ignore>{{ onboarding_config.setup_instructions if onboarding_config is defined else '' }}</textarea>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Monthly (1 Conn) PayPal URL</label>
                             <input type="text" name="paypal_monthly_1"
                                    value="{{ onboarding_config.paypal_monthly_1 if onboarding_config is defined else '' }}"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Monthly (Multi Conn) PayPal URL</label>
                             <input type="text" name="paypal_monthly_multi"
                                    value="{{ onboarding_config.paypal_monthly_multi if onboarding_config is defined else '' }}"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Annual (1 Conn) PayPal URL</label>
                             <input type="text" name="paypal_annual_1"
                                    value="{{ onboarding_config.paypal_annual_1 if onboarding_config is defined else '' }}"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Annual (Multi Conn) PayPal URL</label>
                             <input type="text" name="paypal_annual_multi"
                                    value="{{ onboarding_config.paypal_annual_multi if onboarding_config is defined else '' }}"
-                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white">
+                                   class="w-full border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                         </div>
                     </div>
                     <div class="flex justify-end">
@@ -2356,7 +2356,7 @@ function copyWelcomeBody(btn) {
             <div class="flex items-center gap-2">
                 <input type="text" id="activitySearchInput" oninput="renderActivityLogs()"
                        placeholder="Filter events..."
-                       class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 w-44">
+                       class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800 w-44" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
                 <button type="button" onclick="loadActivityLogs()"
                         class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">
                     Refresh
